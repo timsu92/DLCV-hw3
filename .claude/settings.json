@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git add *|rtk git add *|git -C * add *|rtk git -C * add *)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run ruff check --fix"
+          },
+          {
+            "type": "command",
+            "command": "uv run ruff format"
+          }
+        ]
+      }
+    ]
+  }
+}
