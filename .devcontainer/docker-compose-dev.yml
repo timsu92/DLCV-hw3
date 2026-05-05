@@ -1,0 +1,26 @@
+services:
+  app:
+    image: ghcr.io/timsu92/pytorch_template:main
+    environment:
+      - PROJECT_PATH=/project
+      # prevents python creating .pyc files at runtime
+      # - PYTHONDONTWRITEBYTECODE=1
+      # compile python dependencies into .pyc files
+      # - UV_COMPILE_BYTECODE=1
+      - PYTHONDEVMODE=1
+      - TZ=Asia/Taipei
+    volumes:
+      - ..:/project:rw,cached
+      - ${UV_CACHE_DIR:-${XDG_CACHE_HOME:-${HOME}/.cache}/uv}:/root/.cache/uv:rw,z
+    shm_size: 6G
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+
+# secrets:
+#   GIT_AUTH_TOKEN:
+#     environment: GIT_AUTH_TOKEN
+

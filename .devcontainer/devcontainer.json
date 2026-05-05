@@ -1,0 +1,39 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+{
+  "name": "${localWorkspaceFolderBasename}",
+  "dockerComposeFile": "docker-compose-dev.yml",
+  // For local image maintenance, temporarily switch to:
+  // "dockerComposeFile": ["docker-compose-dev.yml", "docker-compose-dev.build.yml"],
+  "service": "app",
+  // "runServices": [],
+  "overrideCommand": false,
+
+  // ## Environment ##
+  "workspaceFolder": "/project",
+  // Variables used in all of the container. Rebuild is required if you want to modify
+  "containerEnv": {
+    "GIT_EDITOR": "vim",
+  },
+  // Variables used for the devcontainer.json supporting service / tool
+  "remoteEnv": {
+    "GIT_AUTH_TOKEN": "${localEnv:GIT_AUTH_TOKEN}"
+  },
+
+  // ## Custom commands in different stages ##
+  // "onCreateCommand": "",
+  "postCreateCommand": ".devcontainer/postCreateCommand.sh",
+  // "postStartCommand": "",
+  // "postAttachCommand": "",
+
+  // ## Tool-specific properties ##
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "tamasfe.even-better-toml",
+        "charliermarsh.ruff",
+      ]
+    }
+  }
+}
+
