@@ -15,5 +15,13 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(rtk ls *)",
+      "Bash(rtk read *)",
+      "Bash(uv run *)",
+      "Bash(uv add *)"
+    ]
   }
 }
