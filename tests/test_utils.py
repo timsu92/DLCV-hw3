@@ -57,3 +57,11 @@ def test_load_rgb_drops_alpha(tmp_path):
     assert rgb.shape == (8, 8, 3)
     assert rgb.dtype == np.uint8
     np.testing.assert_array_equal(rgb, img_4ch[:, :, :3])
+
+
+def test_binary_mask_to_bbox_empty_raises():
+    """Empty mask raises ValueError."""
+    from src.utils import binary_mask_to_bbox
+    mask = np.zeros((10, 10), dtype=bool)
+    with pytest.raises(ValueError, match="empty mask"):
+        binary_mask_to_bbox(mask)
