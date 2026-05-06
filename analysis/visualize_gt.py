@@ -103,17 +103,23 @@ def main() -> None:
     train_coco, val_coco = load_or_build_annotations(
         TRAIN_DIR, CACHE_TRAIN, CACHE_VAL
     )
-    # Merge both splits for full visibility (all 209 images)
+    # Remap train and val IDs separately before merging — both splits use IDs
+    # starting from 1, so a single shared id_map would have key collisions.
+    n_train = len(train_coco["images"])
+    train_remap = {img["id"]: i + 1 for i, img in enumerate(train_coco["images"])}
+    val_remap   = {img["id"]: n_train + i + 1 for i, img in enumerate(val_coco["images"])}
+
+    for img in train_coco["images"]:
+        img["id"] = train_remap[img["id"]]
+    for img in val_coco["images"]:
+        img["id"] = val_remap[img["id"]]
+    for ann in train_coco["annotations"]:
+        ann["image_id"] = train_remap[ann["image_id"]]
+    for ann in val_coco["annotations"]:
+        ann["image_id"] = val_remap[ann["image_id"]]
+
     all_images = train_coco["images"] + val_coco["images"]
-    all_anns = train_coco["annotations"] + val_coco["annotations"]
-
-    # Re-index image_ids to avoid collisions between splits
-    id_map = {img["id"]: i + 1 for i, img in enumerate(all_images)}
-    for img in all_images:
-        img["id"] = id_map[img["id"]]
-    for ann in all_anns:
-        ann["image_id"] = id_map[ann["image_id"]]
-
+    all_anns   = train_coco["annotations"] + val_coco["annotations"]
     merged = {"images": all_images, "annotations": all_anns, "categories": train_coco["categories"]}
     GTViewer(merged, TRAIN_DIR)
 
