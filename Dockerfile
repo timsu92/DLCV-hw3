@@ -149,4 +149,11 @@ ENV VENV_PATH="${PROJECT_PATH}/.venv"
 # prepend venv to path
 ENV PATH="$VENV_PATH/bin:$PATH"
 
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+    && apt-get install --no-install-recommends -y \
+        # Package required by matplotlib for interactive display
+        python3-tk
+
 CMD ["/bin/sh", "-c", "echo \"Container started\"; trap \"echo Container stopped; exit 0\" 15; exec \"$@\"; while sleep 1 & wait $!; do :; done"]
