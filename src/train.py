@@ -53,10 +53,17 @@ def parse_args():
     p.add_argument("--warmup-steps", type=int, default=100)
     p.add_argument("--score-thresh", type=float, default=0.05)
     p.add_argument(
+        "--min-size",
+        type=int,
+        nargs="+",
+        default=[480, 512, 544],
+        help="shorter-side targets for multi-scale training (multiples of 32)",
+    )
+    p.add_argument(
         "--max-size",
         type=int,
-        default=2000,
-        help="max image side after resizing (reduce for smoke tests)",
+        default=640,
+        help="max image side after resizing",
     )
     p.add_argument(
         "--max-anns",
@@ -183,7 +190,11 @@ def main():
         collate_fn=collate_fn,
     )
 
-    model = build_model(max_size=args.max_size, grad_checkpoint=args.grad_checkpoint).to(device)
+    model = build_model(
+        min_size=tuple(args.min_size),
+        max_size=args.max_size,
+        grad_checkpoint=args.grad_checkpoint,
+    ).to(device)
     model = DDP(model, device_ids=[local_rank])
 
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)

@@ -16,13 +16,16 @@ def _enable_checkpointing(layer: nn.Sequential) -> None:
 
 def build_model(
     num_classes: int = 5,
-    max_size: int = 2000,
+    min_size: tuple[int, ...] = (480, 512, 544),
+    max_size: int = 640,
     grad_checkpoint: bool = False,
 ) -> MaskRCNN:
     """Build ResNet101-FPN Mask R-CNN.
 
     num_classes: 4 cell types + 1 background = 5.
-    max_size: maximum image side length after resizing (default 2000 for training).
+    min_size: shorter-side targets for multi-scale training (multiples of 32 align
+        cleanly with FPN strides 4/8/16/32/64).
+    max_size: maximum image side length after resizing.
     grad_checkpoint: enable gradient checkpointing on ResNet layer2/3/4 to
         reduce activation memory ~30-40% at the cost of one extra forward pass.
     """
@@ -44,7 +47,7 @@ def build_model(
     model = MaskRCNN(
         backbone,
         num_classes=num_classes,
-        min_size=(640, 704, 768, 832, 896, 1024),
+        min_size=min_size,
         max_size=max_size,
         rpn_anchor_generator=anchor_generator,
         image_mean=[0.485, 0.456, 0.406],
