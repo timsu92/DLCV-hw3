@@ -1,10 +1,10 @@
 """DDP training script.
 
 Launch with:
-    torchrun --nproc_per_node=2 src/train.py
+    torchrun --nproc_per_node=2 -m src.train
 
 Or single-GPU smoke test:
-    CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 src/train.py --epochs 1
+    CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m src.train --epochs 1
 """
 
 from __future__ import annotations
