@@ -1,0 +1,22 @@
+{
+  "n_images": 209,
+  "h_min": 81,
+  "h_max": 1956,
+  "w_min": 74,
+  "w_max": 2162,
+  "images_with_class": {
+    "1": 96,
+    "2": 146,
+    "3": 94,
+    "4": 58
+  },
+  "total_instances_per_class": {
+    "1": 14537,
+    "2": 15653,
+    "3": 630,
+    "4": 587
+  },
+  "instances_per_image_min": 2,
+  "instances_per_image_max": 772,
+  "instances_per_image_mean": 150.27272727272728
+}
