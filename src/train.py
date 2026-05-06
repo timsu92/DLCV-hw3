@@ -64,6 +64,11 @@ def parse_args():
         default=None,
         help="max GT instances per image; randomly subsampled if exceeded (for smoke tests)",
     )
+    p.add_argument(
+        "--grad-checkpoint",
+        action="store_true",
+        help="enable gradient checkpointing on ResNet layer2-4 to save ~30% activation memory",
+    )
     return p.parse_args()
 
 
@@ -178,7 +183,7 @@ def main():
         collate_fn=collate_fn,
     )
 
-    model = build_model(max_size=args.max_size).to(device)
+    model = build_model(max_size=args.max_size, grad_checkpoint=args.grad_checkpoint).to(device)
     model = DDP(model, device_ids=[local_rank])
 
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
