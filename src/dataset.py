@@ -77,9 +77,10 @@ from src.utils import load_rgb, rle_to_bytes
 class CellDataset(Dataset):
     """Torchvision-compatible detection dataset wrapping COCO-format annotations."""
 
-    def __init__(self, train_dir: Path, coco_data: dict, transforms=None):
+    def __init__(self, train_dir: Path, coco_data: dict, transforms=None, max_anns: int | None = None):
         self.train_dir = train_dir
         self.transforms = transforms
+        self.max_anns = max_anns
         self.images = coco_data["images"]
         self._ann_by_image: dict[int, list[dict]] = {}
         for ann in coco_data["annotations"]:
@@ -94,6 +95,8 @@ class CellDataset(Dataset):
         H, W = img_arr.shape[:2]
 
         anns = self._ann_by_image.get(info["id"], [])
+        if self.max_anns is not None and len(anns) > self.max_anns:
+            anns = random.sample(anns, self.max_anns)
         boxes, labels, masks = [], [], []
         for ann in anns:
             x, y, w, h = ann["bbox"]
