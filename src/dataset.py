@@ -67,6 +67,94 @@ def build_coco_annotations(train_dir: Path, folders: list[str]) -> dict:
     return {"images": images, "annotations": annotations, "categories": CATEGORIES}
 
 
+import torch
+from torch.utils.data import Dataset
+from torchvision import tv_tensors
+from pycocotools import mask as mask_utils
+from src.utils import load_rgb, rle_to_bytes
+
+
+class CellDataset(Dataset):
+    """Torchvision-compatible detection dataset wrapping COCO-format annotations."""
+
+    def __init__(self, train_dir: Path, coco_data: dict, transforms=None):
+        self.train_dir = train_dir
+        self.transforms = transforms
+        self.images = coco_data["images"]
+        self._ann_by_image: dict[int, list[dict]] = {}
+        for ann in coco_data["annotations"]:
+            self._ann_by_image.setdefault(ann["image_id"], []).append(ann)
+
+    def __len__(self) -> int:
+        return len(self.images)
+
+    def __getitem__(self, idx: int):
+        info = self.images[idx]
+        img_arr = load_rgb(self.train_dir / info["file_name"] / "image.tif")  # (H, W, 3) uint8
+        H, W = img_arr.shape[:2]
+
+        anns = self._ann_by_image.get(info["id"], [])
+        boxes, labels, masks = [], [], []
+        for ann in anns:
+            x, y, w, h = ann["bbox"]
+            boxes.append([x, y, x + w, y + h])   # XYXY
+            labels.append(ann["category_id"])
+            decoded = mask_utils.decode(rle_to_bytes(ann["segmentation"]))  # (H, W) uint8
+            masks.append(decoded)
+
+        img_t = tv_tensors.Image(
+            torch.from_numpy(img_arr).permute(2, 0, 1)  # (3, H, W) uint8
+        )
+
+        if boxes:
+            boxes_t = tv_tensors.BoundingBoxes(
+                torch.tensor(boxes, dtype=torch.float32),
+                format=tv_tensors.BoundingBoxFormat.XYXY,
+                canvas_size=(H, W),
+            )
+            masks_t = tv_tensors.Mask(
+                torch.from_numpy(np.stack(masks, axis=0).astype(np.uint8))
+            )
+            labels_t = torch.tensor(labels, dtype=torch.int64)
+        else:
+            boxes_t = tv_tensors.BoundingBoxes(
+                torch.zeros((0, 4), dtype=torch.float32),
+                format=tv_tensors.BoundingBoxFormat.XYXY,
+                canvas_size=(H, W),
+            )
+            masks_t = tv_tensors.Mask(torch.zeros((0, H, W), dtype=torch.uint8))
+            labels_t = torch.zeros(0, dtype=torch.int64)
+
+        target = {
+            "boxes": boxes_t,
+            "labels": labels_t,
+            "masks": masks_t,
+            "image_id": torch.tensor([info["id"]]),
+        }
+
+        if self.transforms is not None:
+            img_t, target = self.transforms(img_t, target)
+
+        return img_t, target
+
+
+def oversample_rare_classes(
+    train_dir: Path,
+    folders: list[str],
+    rare_classes: tuple[int, ...] = (3, 4),
+    factor: int = 3,
+) -> list[str]:
+    """Return folder list with rare-class images repeated `factor` times total."""
+    result = list(folders)
+    for folder in folders:
+        has_rare = any(
+            (train_dir / folder / f"class{c}.tif").exists() for c in rare_classes
+        )
+        if has_rare:
+            result.extend([folder] * (factor - 1))
+    return result
+
+
 def load_or_build_annotations(
     train_dir: Path,
     cache_train: Path,

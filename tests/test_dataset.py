@@ -66,3 +66,53 @@ def test_category_id_from_class_file(tiny_train_dir):
     coco = build_coco_annotations(tiny_train_dir, ["img_a"])
     cat_ids = {ann["category_id"] for ann in coco["annotations"]}
     assert cat_ids == {1, 2}  # img_a has class1 and class2
+
+
+def test_cell_dataset_len(tiny_train_dir):
+    from src.dataset import build_coco_annotations, CellDataset
+    all_folders = sorted([d.name for d in tiny_train_dir.iterdir() if d.is_dir()])
+    coco = build_coco_annotations(tiny_train_dir, all_folders)
+    ds = CellDataset(tiny_train_dir, coco)
+    assert len(ds) == 2
+
+
+def test_cell_dataset_item_shapes(tiny_train_dir):
+    import torch
+    from src.dataset import build_coco_annotations, CellDataset
+    all_folders = sorted([d.name for d in tiny_train_dir.iterdir() if d.is_dir()])
+    coco = build_coco_annotations(tiny_train_dir, all_folders)
+    ds = CellDataset(tiny_train_dir, coco)
+    img, target = ds[0]
+    assert img.shape[0] == 3          # RGB channels
+    assert img.dtype == torch.uint8
+    assert target["boxes"].ndim == 2 and target["boxes"].shape[1] == 4
+    assert target["labels"].ndim == 1
+    assert target["masks"].ndim == 3
+    assert len(target["boxes"]) == len(target["labels"]) == len(target["masks"])
+
+
+def test_cell_dataset_boxes_xyxy(tiny_train_dir):
+    """Boxes must be in XYXY format: x2 > x1 and y2 > y1."""
+    import torch
+    from src.dataset import build_coco_annotations, CellDataset
+    all_folders = sorted([d.name for d in tiny_train_dir.iterdir() if d.is_dir()])
+    coco = build_coco_annotations(tiny_train_dir, all_folders)
+    ds = CellDataset(tiny_train_dir, coco)
+    for i in range(len(ds)):
+        _, target = ds[i]
+        if len(target["boxes"]) > 0:
+            assert (target["boxes"][:, 2] > target["boxes"][:, 0]).all()
+            assert (target["boxes"][:, 3] > target["boxes"][:, 1]).all()
+
+
+def test_oversampled_dataset_has_more_entries(tiny_train_dir):
+    """Oversampled dataset repeats rare-class images."""
+    from src.dataset import build_coco_annotations, CellDataset, oversample_rare_classes
+    all_folders = sorted([d.name for d in tiny_train_dir.iterdir() if d.is_dir()])
+    coco = build_coco_annotations(tiny_train_dir, all_folders)
+    ds_normal = CellDataset(tiny_train_dir, coco)
+    oversampled_folders = oversample_rare_classes(tiny_train_dir, all_folders, factor=3)
+    coco_os = build_coco_annotations(tiny_train_dir, oversampled_folders)
+    ds_os = CellDataset(tiny_train_dir, coco_os)
+    # img_b has class3 → should be repeated
+    assert len(ds_os) > len(ds_normal)
