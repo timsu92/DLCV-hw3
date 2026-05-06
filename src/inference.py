@@ -13,7 +13,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import tifffile
 from torch.amp.autocast_mode import autocast
 
 from src.model import build_model
@@ -52,36 +51,37 @@ def run_inference(
 ) -> None:
     """Run model on all test images and write test-results.json."""
     results = []
+    device_type = "cuda" if device.type == "cuda" else "cpu"
 
-    for filename, image_id in image_name_to_id.items():
-        img_path = test_dir / filename
-        img_rgb = load_rgb(img_path)          # (H, W, 3) uint8
-        img_t = (
-            torch.from_numpy(img_rgb)
-            .permute(2, 0, 1)                 # (3, H, W)
-            .float()
-            .div(255.0)
-            .to(device)
-        )
+    with torch.no_grad():
+        for filename, image_id in image_name_to_id.items():
+            img_path = test_dir / filename
+            img_rgb = load_rgb(img_path)          # (H, W, 3) uint8
+            img_t = (
+                torch.from_numpy(img_rgb)
+                .permute(2, 0, 1)                 # (3, H, W)
+                .float()
+                .div(255.0)
+                .to(device)
+            )
 
-        device_type = "cuda" if device.type == "cuda" else "cpu"
-        with autocast(device_type):
-            preds = model([img_t])[0]
+            with autocast(device_type):
+                preds = model([img_t])[0]
 
-        for box, label, score, mask in zip(
-            preds["boxes"], preds["labels"], preds["scores"], preds["masks"]
-        ):
-            if score.item() < score_threshold:
-                continue
-            binary = (mask[0] > 0.5).cpu().numpy().astype(bool)
-            if not binary.any():
-                continue
-            results.append(build_submission_entry(
-                image_id=image_id,
-                category_id=label.item(),
-                score=score.item(),
-                binary_mask=binary,
-            ))
+            for box, label, score, mask in zip(
+                preds["boxes"], preds["labels"], preds["scores"], preds["masks"]
+            ):
+                if score.item() < score_threshold:
+                    continue
+                binary = (mask[0] > 0.5).cpu().numpy().astype(bool)
+                if not binary.any():
+                    continue
+                results.append(build_submission_entry(
+                    image_id=image_id,
+                    category_id=label.item(),
+                    score=score.item(),
+                    binary_mask=binary,
+                ))
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(results, indent=2))
@@ -103,7 +103,7 @@ def main() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model()
-    ckpt = torch.load(args.checkpoint, map_location=device)
+    ckpt = torch.load(args.checkpoint, map_location=device, weights_only=True)
     model.load_state_dict(ckpt["model_state_dict"])
     model.to(device).eval()
 

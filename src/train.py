@@ -28,7 +28,7 @@ from pycocotools.cocoeval import COCOeval
 from src.augment import get_train_transform, get_val_transform
 from src.dataset import CellDataset, load_or_build_annotations, oversample_rare_classes, build_coco_annotations
 from src.model import build_model
-from src.utils import encode_mask, rle_to_bytes
+from src.utils import encode_mask
 
 TRAIN_DIR = Path("data/train")
 CACHE_TRAIN = Path("data/train_annotations.json")
@@ -121,17 +121,17 @@ def main():
     train_coco_os = build_coco_annotations(TRAIN_DIR, train_folders_os)
 
     train_ds = CellDataset(TRAIN_DIR, train_coco_os, transforms=get_train_transform(), max_anns=args.max_anns)
-    val_ds = CellDataset(TRAIN_DIR, val_coco, transforms=get_val_transform(), max_anns=args.max_anns)
+    val_ds = CellDataset(TRAIN_DIR, val_coco, transforms=get_val_transform())
 
     train_sampler = DistributedSampler(train_ds, shuffle=True)
-    val_sampler = DistributedSampler(val_ds, shuffle=False)
 
     train_loader = DataLoader(
         train_ds, batch_size=args.batch_size, sampler=train_sampler,
         num_workers=4, pin_memory=True, collate_fn=collate_fn,
     )
+    # val loader: no DistributedSampler — rank 0 evaluates full val set
     val_loader = DataLoader(
-        val_ds, batch_size=1, sampler=val_sampler,
+        val_ds, batch_size=1,
         num_workers=2, pin_memory=True, collate_fn=collate_fn,
     )
 
@@ -143,7 +143,7 @@ def main():
     total_optim_steps = (len(train_loader) // args.accum_steps) * args.epochs
     warmup_steps = min(args.warmup_steps, total_optim_steps // 5)
     scheduler = SequentialLR(optimizer, schedulers=[
-        LinearLR(optimizer, start_factor=0.1, total_iters=warmup_steps),
+        LinearLR(optimizer, start_factor=0.1, total_iters=max(1, warmup_steps)),
         CosineAnnealingLR(optimizer, T_max=max(1, total_optim_steps - warmup_steps), eta_min=1e-6),
     ], milestones=[warmup_steps])
 
@@ -179,6 +179,15 @@ def main():
                 optimizer.zero_grad()
 
             epoch_loss += loss.item() * args.accum_steps
+
+        # Flush remaining gradients if last epoch batch didn't land on an accum boundary
+        if len(train_loader) % args.accum_steps != 0:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            scaler.step(optimizer)
+            scaler.update()
+            scheduler.step()
+            optimizer.zero_grad()
 
         if is_main:
             avg_loss = epoch_loss / len(train_loader)
