@@ -125,6 +125,18 @@ def evaluate(
     return float(evaluator.stats[1])  # stats[1] = AP @ IoU=0.50
 
 
+def save_checkpoint(path: Path, epoch: int, model, optimizer, ap50: float):
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state_dict": model.module.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "ap50": ap50,
+        },
+        path,
+    )
+
+
 def main():
     args = parse_args()
     local_rank = setup_ddp()
@@ -185,7 +197,7 @@ def main():
 
     scaler = GradScaler("cuda")
     best_ap50 = 0.0
-    CHECKPOINT_DIR.mkdir(exist_ok=True)
+    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(args.epochs):
         model.train()
@@ -235,16 +247,34 @@ def main():
                 model.module, val_loader, val_coco, device, args.score_thresh
             )
             print(f"  Val AP50: {ap50:.4f}  (best: {best_ap50:.4f})", flush=True)
+
+            save_checkpoint(
+                CHECKPOINT_DIR / "last_model.pth",
+                epoch + 1,
+                model,
+                optimizer,
+                ap50,
+            )
+            print("  Saved last checkpoint", flush=True)
+
+            if (epoch + 1) % 3 == 0:
+                save_checkpoint(
+                    CHECKPOINT_DIR / f"epoch_{epoch + 1:03d}.pth",
+                    epoch + 1,
+                    model,
+                    optimizer,
+                    ap50,
+                )
+                print(f"  Saved periodic checkpoint (epoch {epoch + 1})", flush=True)
+
             if ap50 > best_ap50:
                 best_ap50 = ap50
-                torch.save(
-                    {
-                        "epoch": epoch + 1,
-                        "model_state_dict": model.module.state_dict(),
-                        "optimizer_state_dict": optimizer.state_dict(),
-                        "ap50": ap50,
-                    },
+                save_checkpoint(
                     CHECKPOINT_DIR / "best_model.pth",
+                    epoch + 1,
+                    model,
+                    optimizer,
+                    ap50,
                 )
                 print(f"  Saved best checkpoint (AP50={ap50:.4f})", flush=True)
 
