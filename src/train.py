@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 
 import torch
@@ -39,7 +40,7 @@ from src.utils import encode_mask
 TRAIN_DIR = Path("data/train")
 CACHE_TRAIN = Path("data/train_annotations.json")
 CACHE_VAL = Path("data/val_annotations.json")
-CHECKPOINT_DIR = Path("checkpoints")
+CHECKPOINT_DIR = Path("checkpoints") / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def parse_args():
