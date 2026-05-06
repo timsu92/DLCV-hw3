@@ -7,9 +7,9 @@ Controls:
   Enter    : jump to typed number (1-based)
   Backspace: delete last digit of jump number
 """
+
 from __future__ import annotations
-import json
-import sys
+
 from pathlib import Path
 
 import matplotlib.patches as mpatches
@@ -71,7 +71,9 @@ class GTViewer:
         self.ax.imshow(img)
 
         anns = self.ann_by_image.get(info["id"], [])
-        rng = np.random.default_rng(seed=0)  # fixed seed → same colour per image across renders
+        rng = np.random.default_rng(
+            seed=0
+        )  # fixed seed → same colour per image across renders
 
         overlay = np.zeros((*img.shape[:2], 4), dtype=np.float32)
         for ann in anns:
@@ -82,11 +84,18 @@ class GTViewer:
 
             x, y, w, h = ann["bbox"]
             self.ax.add_patch(
-                mpatches.Rectangle((x, y), w, h, linewidth=1,
-                                   edgecolor=colour, facecolor="none")
+                mpatches.Rectangle(
+                    (x, y), w, h, linewidth=1, edgecolor=colour, facecolor="none"
+                )
             )
-            self.ax.text(x, max(0, y - 3), f"class{ann['category_id']}",
-                         color=colour, fontsize=7, clip_on=True)
+            self.ax.text(
+                x,
+                max(0, y - 3),
+                f"class{ann['category_id']}",
+                color=colour,
+                fontsize=7,
+                clip_on=True,
+            )
 
         self.ax.imshow(overlay, interpolation="nearest")
 
@@ -100,14 +109,12 @@ class GTViewer:
 
 
 def main() -> None:
-    train_coco, val_coco = load_or_build_annotations(
-        TRAIN_DIR, CACHE_TRAIN, CACHE_VAL
-    )
+    train_coco, val_coco = load_or_build_annotations(TRAIN_DIR, CACHE_TRAIN, CACHE_VAL)
     # Remap train and val IDs separately before merging — both splits use IDs
     # starting from 1, so a single shared id_map would have key collisions.
     n_train = len(train_coco["images"])
     train_remap = {img["id"]: i + 1 for i, img in enumerate(train_coco["images"])}
-    val_remap   = {img["id"]: n_train + i + 1 for i, img in enumerate(val_coco["images"])}
+    val_remap = {img["id"]: n_train + i + 1 for i, img in enumerate(val_coco["images"])}
 
     for img in train_coco["images"]:
         img["id"] = train_remap[img["id"]]
@@ -119,8 +126,12 @@ def main() -> None:
         ann["image_id"] = val_remap[ann["image_id"]]
 
     all_images = train_coco["images"] + val_coco["images"]
-    all_anns   = train_coco["annotations"] + val_coco["annotations"]
-    merged = {"images": all_images, "annotations": all_anns, "categories": train_coco["categories"]}
+    all_anns = train_coco["annotations"] + val_coco["annotations"]
+    merged = {
+        "images": all_images,
+        "annotations": all_anns,
+        "categories": train_coco["categories"],
+    }
     GTViewer(merged, TRAIN_DIR)
 
 

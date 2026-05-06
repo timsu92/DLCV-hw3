@@ -1,10 +1,24 @@
 from __future__ import annotations
+
 import json
 import random
 from pathlib import Path
+
 import numpy as np
 import tifffile
-from src.utils import load_mask, mask_to_instances, binary_mask_to_bbox, encode_mask
+import torch
+from pycocotools import mask as mask_utils
+from torch.utils.data import Dataset
+from torchvision import tv_tensors
+
+from src.utils import (
+    binary_mask_to_bbox,
+    encode_mask,
+    load_mask,
+    load_rgb,
+    mask_to_instances,
+    rle_to_bytes,
+)
 
 CATEGORIES = [
     {"id": 1, "name": "class1", "supercategory": "cell"},
@@ -53,31 +67,32 @@ def build_coco_annotations(train_dir: Path, folders: list[str]) -> dict:
             for binary in mask_to_instances(mask):
                 bbox = binary_mask_to_bbox(binary)
                 rle = encode_mask(binary)
-                annotations.append({
-                    "id": ann_id,
-                    "image_id": img_idx,
-                    "category_id": cat_id,
-                    "segmentation": rle,
-                    "bbox": bbox,
-                    "area": float(binary.sum()),
-                    "iscrowd": 0,
-                })
+                annotations.append(
+                    {
+                        "id": ann_id,
+                        "image_id": img_idx,
+                        "category_id": cat_id,
+                        "segmentation": rle,
+                        "bbox": bbox,
+                        "area": float(binary.sum()),
+                        "iscrowd": 0,
+                    }
+                )
                 ann_id += 1
 
     return {"images": images, "annotations": annotations, "categories": CATEGORIES}
 
 
-import torch
-from torch.utils.data import Dataset
-from torchvision import tv_tensors
-from pycocotools import mask as mask_utils
-from src.utils import load_rgb, rle_to_bytes
-
-
 class CellDataset(Dataset):
     """Torchvision-compatible detection dataset wrapping COCO-format annotations."""
 
-    def __init__(self, train_dir: Path, coco_data: dict, transforms=None, max_anns: int | None = None):
+    def __init__(
+        self,
+        train_dir: Path,
+        coco_data: dict,
+        transforms=None,
+        max_anns: int | None = None,
+    ):
         self.train_dir = train_dir
         self.transforms = transforms
         self.max_anns = max_anns
@@ -91,7 +106,9 @@ class CellDataset(Dataset):
 
     def __getitem__(self, idx: int):
         info = self.images[idx]
-        img_arr = load_rgb(self.train_dir / info["file_name"] / "image.tif")  # (H, W, 3) uint8
+        img_arr = load_rgb(
+            self.train_dir / info["file_name"] / "image.tif"
+        )  # (H, W, 3) uint8
         H, W = img_arr.shape[:2]
 
         anns = self._ann_by_image.get(info["id"], [])
@@ -100,9 +117,11 @@ class CellDataset(Dataset):
         boxes, labels, masks = [], [], []
         for ann in anns:
             x, y, w, h = ann["bbox"]
-            boxes.append([x, y, x + w, y + h])   # XYXY
+            boxes.append([x, y, x + w, y + h])  # XYXY
             labels.append(ann["category_id"])
-            decoded = mask_utils.decode(rle_to_bytes(ann["segmentation"]))  # (H, W) uint8
+            decoded = mask_utils.decode(
+                rle_to_bytes(ann["segmentation"])
+            )  # (H, W) uint8
             masks.append(decoded)
 
         img_t = tv_tensors.Image(
@@ -174,7 +193,9 @@ def load_or_build_annotations(
         return train_coco, val_coco
 
     train_folders, val_folders = split_images(train_dir, val_fraction, seed)
-    print(f"Building annotations: {len(train_folders)} train, {len(val_folders)} val...")
+    print(
+        f"Building annotations: {len(train_folders)} train, {len(val_folders)} val..."
+    )
     train_coco = build_coco_annotations(train_dir, train_folders)
     val_coco = build_coco_annotations(train_dir, val_folders)
 

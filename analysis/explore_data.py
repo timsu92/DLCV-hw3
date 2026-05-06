@@ -1,4 +1,5 @@
 """Dataset statistics — kept in repo for report reference."""
+
 from __future__ import annotations
 import json
 import os
@@ -40,17 +41,25 @@ def main() -> None:
 
     sizes = np.array(image_sizes)
     print(f"Total images: {len(folders)}")
-    print(f"Image H range: {sizes[:,0].min()}–{sizes[:,0].max()}, mean {sizes[:,0].mean():.1f}")
-    print(f"Image W range: {sizes[:,1].min()}–{sizes[:,1].max()}, mean {sizes[:,1].mean():.1f}")
+    print(
+        f"Image H range: {sizes[:, 0].min()}–{sizes[:, 0].max()}, mean {sizes[:, 0].mean():.1f}"
+    )
+    print(
+        f"Image W range: {sizes[:, 1].min()}–{sizes[:, 1].max()}, mean {sizes[:, 1].mean():.1f}"
+    )
     print(f"Images containing each class: {images_with_class}")
     print(f"Total instances per class:    {class_instance_counts}")
-    print(f"Instances per image — min: {min(instances_per_image)}, "
-          f"max: {max(instances_per_image)}, mean: {np.mean(instances_per_image):.1f}")
+    print(
+        f"Instances per image — min: {min(instances_per_image)}, "
+        f"max: {max(instances_per_image)}, mean: {np.mean(instances_per_image):.1f}"
+    )
 
     stats = {
         "n_images": len(folders),
-        "h_min": int(sizes[:,0].min()), "h_max": int(sizes[:,0].max()),
-        "w_min": int(sizes[:,1].min()), "w_max": int(sizes[:,1].max()),
+        "h_min": int(sizes[:, 0].min()),
+        "h_max": int(sizes[:, 0].max()),
+        "w_min": int(sizes[:, 1].min()),
+        "w_max": int(sizes[:, 1].max()),
         "images_with_class": images_with_class,
         "total_instances_per_class": class_instance_counts,
         "instances_per_image_min": min(instances_per_image),

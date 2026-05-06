@@ -8,6 +8,7 @@ Outputs:
 - Estimated bbox sizes after MaskRCNN's internal resize
 - Anchor coverage summary vs. actual bbox sizes
 """
+
 from __future__ import annotations
 
 import json
@@ -17,11 +18,11 @@ from pathlib import Path
 import numpy as np
 
 CACHE_TRAIN = Path("data/train_annotations.json")
-CACHE_VAL   = Path("data/val_annotations.json")
+CACHE_VAL = Path("data/val_annotations.json")
 
 # MaskRCNN training resize params (from src/model.py)
 MIN_SIZES = (640, 704, 768, 832, 896, 1024)
-MAX_SIZE  = 2000
+MAX_SIZE = 2000
 
 # Anchor sizes from src/model.py (one value per FPN level, at scaled image resolution)
 ANCHOR_SIZES = [8, 16, 32, 64, 64, 128, 128, 256, 256, 512]  # flattened per-level pairs
@@ -31,7 +32,9 @@ ANCHOR_MAX = 512
 CATEGORY_NAMES = {1: "class1", 2: "class2", 3: "class3", 4: "class4"}
 
 
-def maskrcnn_scale(H: int, W: int, min_size: int = 832, max_size: int = MAX_SIZE) -> float:
+def maskrcnn_scale(
+    H: int, W: int, min_size: int = 832, max_size: int = MAX_SIZE
+) -> float:
     """Estimate the resize scale MaskRCNN applies to an (H, W) image."""
     scale = min_size / min(H, W)
     if max(H, W) * scale > max_size:
@@ -42,8 +45,10 @@ def maskrcnn_scale(H: int, W: int, min_size: int = 832, max_size: int = MAX_SIZE
 def percentile_table(values: np.ndarray, label: str) -> None:
     p = np.percentile(values, [0, 10, 25, 50, 75, 90, 95, 99, 100])
     print(f"\n  {label}  (n={len(values):,})")
-    print(f"    min={p[0]:.1f}  p10={p[1]:.1f}  p25={p[2]:.1f}  median={p[3]:.1f}"
-          f"  p75={p[4]:.1f}  p90={p[5]:.1f}  p95={p[6]:.1f}  p99={p[7]:.1f}  max={p[8]:.1f}")
+    print(
+        f"    min={p[0]:.1f}  p10={p[1]:.1f}  p25={p[2]:.1f}  median={p[3]:.1f}"
+        f"  p75={p[4]:.1f}  p90={p[5]:.1f}  p95={p[6]:.1f}  p99={p[7]:.1f}  max={p[8]:.1f}"
+    )
 
 
 def main() -> None:
@@ -63,7 +68,7 @@ def main() -> None:
     print(f"Total annotations: {len(all_anns):,}")
 
     # Collect per-category bbox data
-    orig_wh:   dict[int, list] = {c: [] for c in range(1, 5)}
+    orig_wh: dict[int, list] = {c: [] for c in range(1, 5)}
     scaled_wh: dict[int, list] = {c: [] for c in range(1, 5)}
 
     for ann in all_anns:
@@ -87,11 +92,13 @@ def main() -> None:
 
     all_orig = []
     for cat in range(1, 5):
-        arr = np.array(orig_wh[cat])          # (N, 2): [w, h]
+        arr = np.array(orig_wh[cat])  # (N, 2): [w, h]
         if len(arr) == 0:
             continue
         all_orig.extend(arr.tolist())
-        sides = np.sqrt(arr[:, 0] * arr[:, 1])   # geometric mean side (proxy for object size)
+        sides = np.sqrt(
+            arr[:, 0] * arr[:, 1]
+        )  # geometric mean side (proxy for object size)
         percentile_table(sides, f"{CATEGORY_NAMES[cat]} — √(w×h)")
 
     all_orig_arr = np.array(all_orig)
@@ -121,25 +128,33 @@ def main() -> None:
     print("ANCHOR COVERAGE vs. SCALED BBOX SIZES")
     print("=" * 70)
     print(f"\n  Current anchor range: {ANCHOR_MIN}px – {ANCHOR_MAX}px")
-    print(f"  (aspect ratios 0.5, 1.0, 2.0 → effective range ×{1/math.sqrt(2):.2f}–×{math.sqrt(2):.2f})")
+    print(
+        f"  (aspect ratios 0.5, 1.0, 2.0 → effective range ×{1 / math.sqrt(2):.2f}–×{math.sqrt(2):.2f})"
+    )
 
     below = (sides_scaled < ANCHOR_MIN).mean() * 100
     above = (sides_scaled > ANCHOR_MAX).mean() * 100
     within = 100 - below - above
-    print(f"\n  Scaled bboxes within anchor range [{ANCHOR_MIN}, {ANCHOR_MAX}]: {within:.1f}%")
+    print(
+        f"\n  Scaled bboxes within anchor range [{ANCHOR_MIN}, {ANCHOR_MAX}]: {within:.1f}%"
+    )
     print(f"  Below anchor min (<{ANCHOR_MIN}px): {below:.1f}%")
     print(f"  Above anchor max (>{ANCHOR_MAX}px): {above:.1f}%")
 
     # Suggest if adjustment needed
-    p1_scaled  = float(np.percentile(sides_scaled, 1))
+    p1_scaled = float(np.percentile(sides_scaled, 1))
     p99_scaled = float(np.percentile(sides_scaled, 99))
     print(f"\n  p1={p1_scaled:.1f}px  p99={p99_scaled:.1f}px")
     if p1_scaled < ANCHOR_MIN * 0.7:
-        print(f"  ⚠  p1 is well below anchor min — consider adding smaller anchors "
-              f"(e.g. sizes starting at {int(p1_scaled * 0.8)}px)")
+        print(
+            f"  ⚠  p1 is well below anchor min — consider adding smaller anchors "
+            f"(e.g. sizes starting at {int(p1_scaled * 0.8)}px)"
+        )
     if p99_scaled > ANCHOR_MAX * 1.3:
-        print(f"  ⚠  p99 exceeds anchor max — consider adding larger anchors "
-              f"(e.g. sizes up to {int(p99_scaled * 1.2)}px)")
+        print(
+            f"  ⚠  p99 exceeds anchor max — consider adding larger anchors "
+            f"(e.g. sizes up to {int(p99_scaled * 1.2)}px)"
+        )
     if p1_scaled >= ANCHOR_MIN * 0.7 and p99_scaled <= ANCHOR_MAX * 1.3:
         print("  ✓  Current anchor range looks appropriate for this dataset.")
 
@@ -152,10 +167,23 @@ def main() -> None:
             CATEGORY_NAMES[c]: {
                 "n": len(orig_wh[c]),
                 "sqrt_wh_percentiles": {
-                    str(p): round(float(np.percentile(np.sqrt(np.array(orig_wh[c])[:, 0] * np.array(orig_wh[c])[:, 1]), p)), 2)
+                    str(p): round(
+                        float(
+                            np.percentile(
+                                np.sqrt(
+                                    np.array(orig_wh[c])[:, 0]
+                                    * np.array(orig_wh[c])[:, 1]
+                                ),
+                                p,
+                            )
+                        ),
+                        2,
+                    )
                     for p in [0, 10, 25, 50, 75, 90, 95, 99, 100]
-                }
-            } for c in range(1, 5) if orig_wh[c]
+                },
+            }
+            for c in range(1, 5)
+            if orig_wh[c]
         },
         "scaled_min832": {
             "anchor_range": [ANCHOR_MIN, ANCHOR_MAX],

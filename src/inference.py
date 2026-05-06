@@ -6,6 +6,7 @@ Run:
         --output test-results.json \
         --score-thresh 0.3
 """
+
 from __future__ import annotations
 import argparse
 import json
@@ -56,10 +57,10 @@ def run_inference(
     with torch.no_grad():
         for filename, image_id in image_name_to_id.items():
             img_path = test_dir / filename
-            img_rgb = load_rgb(img_path)          # (H, W, 3) uint8
+            img_rgb = load_rgb(img_path)  # (H, W, 3) uint8
             img_t = (
                 torch.from_numpy(img_rgb)
-                .permute(2, 0, 1)                 # (3, H, W)
+                .permute(2, 0, 1)  # (3, H, W)
                 .float()
                 .div(255.0)
                 .to(device)
@@ -76,12 +77,14 @@ def run_inference(
                 binary = (mask[0] > 0.5).cpu().numpy().astype(bool)
                 if not binary.any():
                     continue
-                results.append(build_submission_entry(
-                    image_id=image_id,
-                    category_id=label.item(),
-                    score=score.item(),
-                    binary_mask=binary,
-                ))
+                results.append(
+                    build_submission_entry(
+                        image_id=image_id,
+                        category_id=label.item(),
+                        score=score.item(),
+                        binary_mask=binary,
+                    )
+                )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(results, indent=2))
@@ -90,9 +93,13 @@ def run_inference(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--checkpoint", type=Path, default=Path("checkpoints/best_model.pth"))
+    parser.add_argument(
+        "--checkpoint", type=Path, default=Path("checkpoints/best_model.pth")
+    )
     parser.add_argument("--test-dir", type=Path, default=Path("data/test_release"))
-    parser.add_argument("--id-map", type=Path, default=Path("data/test_image_name_to_ids.json"))
+    parser.add_argument(
+        "--id-map", type=Path, default=Path("data/test_image_name_to_ids.json")
+    )
     parser.add_argument("--output", type=Path, default=Path("test-results.json"))
     parser.add_argument("--score-thresh", type=float, default=0.3)
     args = parser.parse_args()
@@ -107,7 +114,9 @@ def main() -> None:
     model.load_state_dict(ckpt["model_state_dict"])
     model.to(device).eval()
 
-    run_inference(model, args.test_dir, image_name_to_id, args.output, args.score_thresh, device)
+    run_inference(
+        model, args.test_dir, image_name_to_id, args.output, args.score_thresh, device
+    )
 
 
 if __name__ == "__main__":

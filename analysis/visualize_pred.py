@@ -11,6 +11,7 @@ Controls:
   Enter    : jump to that image (1-based index in sorted test filenames)
   Backspace: delete last digit
 """
+
 from __future__ import annotations
 import argparse
 import json
@@ -98,14 +99,22 @@ class PredViewer:
             overlay[binary, 3] = 0.45
 
             x, y, w, h = pred["bbox"]
-            cat_name = CATEGORY_NAMES.get(pred["category_id"], f"cat{pred['category_id']}")
-            self.ax.add_patch(
-                mpatches.Rectangle((x, y), w, h, linewidth=1,
-                                   edgecolor=colour, facecolor="none")
+            cat_name = CATEGORY_NAMES.get(
+                pred["category_id"], f"cat{pred['category_id']}"
             )
-            self.ax.text(x, max(0, y - 3),
-                         f"{cat_name} {pred['score']:.2f}",
-                         color=colour, fontsize=7, clip_on=True)
+            self.ax.add_patch(
+                mpatches.Rectangle(
+                    (x, y), w, h, linewidth=1, edgecolor=colour, facecolor="none"
+                )
+            )
+            self.ax.text(
+                x,
+                max(0, y - 3),
+                f"{cat_name} {pred['score']:.2f}",
+                color=colour,
+                fontsize=7,
+                clip_on=True,
+            )
 
         self.ax.imshow(overlay, interpolation="nearest")
 
