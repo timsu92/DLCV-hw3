@@ -1,8 +1,8 @@
 """Interactive submission visualizer.
 
 Usage:
-    uv run python analysis/visualize_pred.py
-    uv run python analysis/visualize_pred.py --results path/to/test-results.json
+    uv run python -m analysis.visualize_pred
+    uv run python -m analysis.visualize_pred --results path/to/test-results.json
 
 Controls:
   →  /  d  : next image
@@ -13,6 +13,7 @@ Controls:
 """
 
 from __future__ import annotations
+
 import argparse
 import json
 from pathlib import Path
