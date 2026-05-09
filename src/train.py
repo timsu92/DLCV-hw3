@@ -66,12 +66,6 @@ def parse_args():
         help="max image side after resizing",
     )
     p.add_argument(
-        "--max-anns",
-        type=int,
-        default=None,
-        help="max GT instances per image; randomly subsampled if exceeded (for smoke tests)",
-    )
-    p.add_argument(
         "--grad-checkpoint",
         action="store_true",
         help="enable gradient checkpointing on ResNet layer2-4 to save ~30% activation memory",
@@ -167,7 +161,6 @@ def main():
         TRAIN_DIR,
         train_coco_os,
         transforms=get_train_transform(),
-        max_anns=args.max_anns,
     )
     val_ds = CellDataset(TRAIN_DIR, val_coco, transforms=get_val_transform())
 
