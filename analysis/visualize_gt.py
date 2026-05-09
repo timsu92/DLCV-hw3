@@ -38,7 +38,7 @@ class GTViewer:
         self.idx = 0
         self.num_buf = ""
 
-        self.fig, (self.ax_annot, self.ax_orig) = plt.subplots(1, 2, figsize=(20, 9))
+        self.fig, (self.ax_annot, self.ax_orig) = plt.subplots(1, 2, figsize=(20, 9.8))
         self.fig.canvas.mpl_connect("key_press_event", self._on_key)
         self._render()
         plt.tight_layout()
