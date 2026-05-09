@@ -1,13 +1,13 @@
 """Inference script — produces test-results.json for CodaBench submission.
 
 Run:
-    uv run python src/inference.py --checkpoint checkpoints/best_model.pth \
-        --test-dir data/test_release \
+    uv run python -m src.inference --checkpoint checkpoints/best_model.pth \
         --output test-results.json \
         --score-thresh 0.3
 """
 
 from __future__ import annotations
+
 import argparse
 import json
 from pathlib import Path
@@ -17,7 +17,7 @@ import torch
 from torch.amp.autocast_mode import autocast
 
 from src.model import build_model
-from src.utils import load_rgb, encode_mask, binary_mask_to_bbox
+from src.utils import binary_mask_to_bbox, encode_mask, load_rgb
 
 
 def build_submission_entry(
