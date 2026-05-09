@@ -1,10 +1,10 @@
 """DDP training script.
 
 Launch with:
-    torchrun --nproc_per_node=2 -m src.train
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True torchrun --nproc_per_node=2 -m src.train
 
 Or single-GPU smoke test:
-    CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m src.train --epochs 1
+    PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node=1 -m src.train --epochs 1
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from src.dataset import (
     oversample_rare_classes,
 )
 from src.model import build_model
-from src.utils import cross_class_nms, encode_mask
+from src.utils import cross_class_nms, encode_mask, resize_binary_mask
 
 TRAIN_DIR = Path("data/train")
 CACHE_TRAIN = Path("data/train_annotations.json")
@@ -92,9 +92,16 @@ def collate_fn(batch):
 def evaluate(model_without_ddp, val_loader, val_coco_json: dict, device):
     """Run COCOeval on val set. Returns AP50."""
     model_without_ddp.eval()
+    torch.cuda.empty_cache()
+
     coco_gt = COCO()
     coco_gt.dataset = val_coco_json
     coco_gt.createIndex()
+
+    # Original image sizes needed to scale predicted masks back to GT resolution.
+    # Val images are pre-resized to 640 px (get_val_transform), so model output
+    # masks are at ~640 px; COCOeval requires them at the original annotation size.
+    img_sizes = {img["id"]: (img["height"], img["width"]) for img in val_coco_json["images"]}
 
     results = []
     for imgs, targets in val_loader:
@@ -103,10 +110,12 @@ def evaluate(model_without_ddp, val_loader, val_coco_json: dict, device):
         for pred, target in zip(preds, targets):
             pred = cross_class_nms(pred)
             image_id = target["image_id"].item()
+            orig_h, orig_w = img_sizes[image_id]
             for box, label, score, mask in zip(
                 pred["boxes"], pred["labels"], pred["scores"], pred["masks"]
             ):
                 binary = (mask[0] > 0.5).cpu().numpy()
+                binary = resize_binary_mask(binary, orig_h, orig_w)
                 rle = encode_mask(binary)
                 results.append(
                     {

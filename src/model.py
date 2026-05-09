@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 import torch.nn as nn
 from torch.utils.checkpoint import checkpoint
+from torchvision.models import ResNet101_Weights
 from torchvision.models.detection import MaskRCNN
 from torchvision.models.detection.anchor_utils import AnchorGenerator
 from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
-from torchvision.models import ResNet101_Weights
 
 
 def _enable_checkpointing(layer: nn.Sequential) -> None:
@@ -52,5 +53,10 @@ def build_model(
         rpn_anchor_generator=anchor_generator,
         image_mean=[0.485, 0.456, 0.406],
         image_std=[0.229, 0.224, 0.225],
+        # Dataset has up to 772 instances per image; raise the three-stage funnel
+        # (pre-NMS → post-NMS → final detections) to avoid capping recall.
+        rpn_pre_nms_top_n_test=2600,
+        rpn_post_nms_top_n_test=1500,
+        box_detections_per_img=1000,
     )
     return model

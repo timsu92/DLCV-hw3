@@ -17,7 +17,14 @@ import torch
 from torch.amp.autocast_mode import autocast
 
 from src.model import build_model
-from src.utils import binary_mask_to_bbox, cross_class_nms, encode_mask, load_rgb
+from src.utils import (
+    binary_mask_to_bbox,
+    cross_class_nms,
+    encode_mask,
+    load_rgb,
+    pre_resize_image,
+    resize_binary_mask,
+)
 
 
 def build_submission_entry(
@@ -58,8 +65,11 @@ def run_inference(
         for filename, image_id in image_name_to_id.items():
             img_path = test_dir / filename
             img_rgb = load_rgb(img_path)  # (H, W, 3) uint8
+            # Pre-resize to 640 px shorter side so paste_masks_in_image operates
+            # on a small canvas; masks are scaled back to original size below.
+            img_small, (orig_h, orig_w) = pre_resize_image(img_rgb)
             img_t = (
-                torch.from_numpy(img_rgb)
+                torch.from_numpy(img_small)
                 .permute(2, 0, 1)  # (3, H, W)
                 .float()
                 .div(255.0)
@@ -77,6 +87,7 @@ def run_inference(
                 if score.item() < score_threshold:
                     continue
                 binary = (mask[0] > 0.5).cpu().numpy().astype(bool)
+                binary = resize_binary_mask(binary, orig_h, orig_w)
                 if not binary.any():
                     continue
                 results.append(

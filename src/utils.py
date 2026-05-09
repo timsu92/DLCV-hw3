@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import tifffile
+from PIL import Image
 from pycocotools import mask as mask_utils
 from torchvision.ops import nms as _box_nms
 
@@ -51,6 +52,32 @@ def encode_mask(binary_mask: np.ndarray) -> dict:
 def rle_to_bytes(rle: dict) -> dict:
     """Convert JSON-serialised RLE (counts as str) back to pycocotools format (counts as bytes)."""
     return {"size": rle["size"], "counts": rle["counts"].encode("utf-8")}
+
+
+def resize_binary_mask(binary: np.ndarray, target_h: int, target_w: int) -> np.ndarray:
+    """Nearest-neighbour resize of a boolean mask to (target_h, target_w).
+
+    Used to scale model output masks (at inference resolution) back to the
+    original image resolution required by COCOeval.
+    """
+    if binary.shape == (target_h, target_w):
+        return binary
+    pil = Image.fromarray(binary.astype(np.uint8))
+    return np.array(pil.resize((target_w, target_h), Image.NEAREST), dtype=bool)
+
+
+def pre_resize_image(img: np.ndarray, size: int = 640) -> tuple[np.ndarray, tuple[int, int]]:
+    """Scale image so shorter side == `size`; return (resized, (orig_h, orig_w)).
+
+    Mirrors the v2.Resize(size) behaviour used in the training/val transform so
+    that paste_masks_in_image operates on a small canvas rather than the
+    original high-resolution image.
+    """
+    orig_h, orig_w = img.shape[:2]
+    scale = size / min(orig_h, orig_w)
+    new_h, new_w = round(orig_h * scale), round(orig_w * scale)
+    resized = np.array(Image.fromarray(img).resize((new_w, new_h), Image.BILINEAR))
+    return resized, (orig_h, orig_w)
 
 
 def cross_class_nms(pred: dict, iou_threshold: float = 0.5) -> dict:
