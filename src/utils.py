@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 from pathlib import Path
+
 import numpy as np
 import tifffile
 from pycocotools import mask as mask_utils
+from torchvision.ops import nms as _box_nms
 
 
 def load_rgb(path: str | Path) -> np.ndarray:
@@ -48,3 +51,17 @@ def encode_mask(binary_mask: np.ndarray) -> dict:
 def rle_to_bytes(rle: dict) -> dict:
     """Convert JSON-serialised RLE (counts as str) back to pycocotools format (counts as bytes)."""
     return {"size": rle["size"], "counts": rle["counts"].encode("utf-8")}
+
+
+def cross_class_nms(pred: dict, iou_threshold: float = 0.5) -> dict:
+    """Class-agnostic NMS to suppress cross-class duplicate detections.
+
+    Mask R-CNN's built-in NMS is per-class, so the same cell can appear as two
+    different categories. This applies a second class-agnostic pass: if two boxes
+    overlap by > iou_threshold, only the higher-score prediction is kept.
+    """
+    boxes = pred["boxes"]
+    if len(boxes) == 0:
+        return pred
+    keep = _box_nms(boxes, pred["scores"], iou_threshold)
+    return {k: v[keep] for k, v in pred.items()}

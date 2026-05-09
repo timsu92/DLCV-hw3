@@ -35,7 +35,7 @@ from src.dataset import (
     oversample_rare_classes,
 )
 from src.model import build_model
-from src.utils import encode_mask
+from src.utils import cross_class_nms, encode_mask
 
 TRAIN_DIR = Path("data/train")
 CACHE_TRAIN = Path("data/train_annotations.json")
@@ -89,9 +89,7 @@ def collate_fn(batch):
 
 
 @torch.no_grad()
-def evaluate(
-    model_without_ddp, val_loader, val_coco_json: dict, device, score_thresh=0.05
-):
+def evaluate(model_without_ddp, val_loader, val_coco_json: dict, device):
     """Run COCOeval on val set. Returns AP50."""
     model_without_ddp.eval()
     coco_gt = COCO()
@@ -103,12 +101,11 @@ def evaluate(
         imgs = [img.to(device) for img in imgs]
         preds = model_without_ddp(imgs)
         for pred, target in zip(preds, targets):
+            pred = cross_class_nms(pred)
             image_id = target["image_id"].item()
             for box, label, score, mask in zip(
                 pred["boxes"], pred["labels"], pred["scores"], pred["masks"]
             ):
-                if score < score_thresh:
-                    continue
                 binary = (mask[0] > 0.5).cpu().numpy()
                 rle = encode_mask(binary)
                 results.append(
@@ -126,6 +123,9 @@ def evaluate(
 
     coco_dt = coco_gt.loadRes(results)
     evaluator = COCOeval(coco_gt, coco_dt, "segm")
+    # Default maxDets=100 caps recall on dense images (up to 772 instances/image).
+    # Raise to 1500 to cover the full instance range in this dataset.
+    evaluator.params.maxDets = [1, 10, 1500]
     evaluator.evaluate()
     evaluator.accumulate()
     evaluator.summarize()
@@ -253,9 +253,7 @@ def main():
 
         # Evaluate on rank 0 only
         if is_main:
-            ap50 = evaluate(
-                model.module, val_loader, val_coco, device, args.score_thresh
-            )
+            ap50 = evaluate(model.module, val_loader, val_coco, device)
             print(f"  Val AP50: {ap50:.4f}  (best: {best_ap50:.4f})", flush=True)
 
             save_checkpoint(

@@ -17,7 +17,7 @@ import torch
 from torch.amp.autocast_mode import autocast
 
 from src.model import build_model
-from src.utils import binary_mask_to_bbox, encode_mask, load_rgb
+from src.utils import binary_mask_to_bbox, cross_class_nms, encode_mask, load_rgb
 
 
 def build_submission_entry(
@@ -69,6 +69,8 @@ def run_inference(
             with autocast(device_type):
                 preds = model([img_t])[0]
 
+            preds = cross_class_nms(preds)
+
             for box, label, score, mask in zip(
                 preds["boxes"], preds["labels"], preds["scores"], preds["masks"]
             ):
@@ -101,7 +103,7 @@ def main() -> None:
         "--id-map", type=Path, default=Path("data/test_image_name_to_ids.json")
     )
     parser.add_argument("--output", type=Path, default=Path("test-results.json"))
-    parser.add_argument("--score-thresh", type=float, default=0.3)
+    parser.add_argument("--score-thresh", type=float, default=0.05)
     args = parser.parse_args()
 
     with open(args.id_map) as f:
