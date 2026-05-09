@@ -53,7 +53,7 @@ class PredViewer:
         self.idx = 0
         self.num_buf = ""
 
-        self.fig, self.ax = plt.subplots(figsize=(12, 9))
+        self.fig, (self.ax_annot, self.ax_orig) = plt.subplots(1, 2, figsize=(20, 9))
         self.fig.canvas.mpl_connect("key_press_event", self._on_key)
         self._render()
         plt.tight_layout()
@@ -80,11 +80,20 @@ class PredViewer:
         self._render()
 
     def _render(self) -> None:
-        self.ax.clear()
+        self.ax_annot.clear()
+        self.ax_orig.clear()
+
         filename = self.filenames[self.idx]
         image_id = self.name_to_id[filename]
         img = load_rgb(self.test_dir / filename)
-        self.ax.imshow(img)
+
+        # ── Right: original image ────────────────────────────────────────────
+        self.ax_orig.imshow(img)
+        self.ax_orig.set_title("original", fontsize=9)
+        self.ax_orig.axis("off")
+
+        # ── Left: predictions (masks + bboxes + labels) ──────────────────────
+        self.ax_annot.imshow(img)
 
         preds = self.preds_by_id.get(image_id, [])
         # Sort by score ascending so higher-confidence masks draw on top
@@ -103,12 +112,12 @@ class PredViewer:
             cat_name = CATEGORY_NAMES.get(
                 pred["category_id"], f"cat{pred['category_id']}"
             )
-            self.ax.add_patch(
+            self.ax_annot.add_patch(
                 mpatches.Rectangle(
                     (x, y), w, h, linewidth=1, edgecolor=colour, facecolor="none"
                 )
             )
-            self.ax.text(
+            self.ax_annot.text(
                 x,
                 max(0, y - 3),
                 f"{cat_name} {pred['score']:.2f}",
@@ -117,14 +126,14 @@ class PredViewer:
                 clip_on=True,
             )
 
-        self.ax.imshow(overlay, interpolation="nearest")
+        self.ax_annot.imshow(overlay, interpolation="nearest")
 
         jump_hint = f"  (jump: {self.num_buf}▌)" if self.num_buf else ""
-        self.ax.set_title(
+        self.ax_annot.set_title(
             f"[{self.idx + 1}/{self.n}]  {filename}  —  {len(preds)} predictions{jump_hint}",
             fontsize=10,
         )
-        self.ax.axis("off")
+        self.ax_annot.axis("off")
         self.fig.canvas.draw_idle()
 
 
