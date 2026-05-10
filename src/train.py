@@ -45,7 +45,7 @@ CHECKPOINT_DIR = Path("checkpoints") / datetime.now(UTC).strftime("%Y%m%dT%H%M%S
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--epochs", type=int, default=50)
+    p.add_argument("--epochs", type=int, default=37)
     p.add_argument("--batch-size", type=int, default=2, help="per-GPU batch size")
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--weight-decay", type=float, default=1e-4)
@@ -56,14 +56,20 @@ def parse_args():
         "--min-size",
         type=int,
         nargs="+",
-        default=[480, 512, 544],
+        default=[640, 768, 896, 1024],
         help="shorter-side targets for multi-scale training (multiples of 32)",
     )
     p.add_argument(
         "--max-size",
         type=int,
-        default=640,
+        default=1024,
         help="max image side after resizing",
+    )
+    p.add_argument(
+        "--skip-above-instances",
+        type=int,
+        default=400,
+        help="exclude train images with more than N instances (memory cap)",
     )
     p.add_argument(
         "--grad-checkpoint",
@@ -170,6 +176,7 @@ def main():
         TRAIN_DIR,
         train_coco_os,
         transforms=get_train_transform(),
+        skip_above_instances=args.skip_above_instances,
     )
     val_ds = CellDataset(TRAIN_DIR, val_coco, transforms=get_val_transform())
 
