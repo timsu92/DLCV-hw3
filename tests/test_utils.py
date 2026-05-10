@@ -73,3 +73,30 @@ def test_binary_mask_to_bbox_empty_raises():
     mask = np.zeros((10, 10), dtype=bool)
     with pytest.raises(ValueError, match="empty mask"):
         binary_mask_to_bbox(mask)
+
+
+def test_pre_resize_image_default_size_is_1024():
+    """New default: shorter side resized to 1024 (was 640)."""
+    from src.utils import pre_resize_image
+
+    # near-square 1024×1024 input → output exactly 1024×1024 (no rescale needed)
+    img = np.zeros((1024, 1024, 3), dtype=np.uint8)
+    out, (orig_h, orig_w) = pre_resize_image(img)
+    assert out.shape == (3, 1024, 1024), f"got {out.shape}"
+    assert (orig_h, orig_w) == (1024, 1024)
+
+
+def test_pre_resize_image_default_max_size_caps_extreme_aspect():
+    """Extreme aspect (1:9.4) capped to longer side 1025 (max_size).
+
+    max_size=1025 (just above size=1024) is a torchvision constraint workaround:
+    v2.Resize requires max_size > size strictly. This still caps extreme aspects.
+    """
+    from src.utils import pre_resize_image
+
+    img = np.zeros((160, 1500, 3), dtype=np.uint8)
+    out, (orig_h, orig_w) = pre_resize_image(img)
+    # shorter→1024 would give 9600 long side; capped at max_size=1025
+    assert out.shape[2] == 1025, f"long side not capped: {out.shape}"
+    # 160 * (1025/1500) = 109
+    assert out.shape[1] == 109, f"unexpected short side: {out.shape}"

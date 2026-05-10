@@ -69,15 +69,15 @@ def resize_binary_mask(binary: np.ndarray, target_h: int, target_w: int) -> np.n
 
 
 def pre_resize_image(
-    img: np.ndarray, size: int = 640, max_size: int = 1333
+    img: np.ndarray, size: int = 1024, max_size: int = 1025
 ) -> tuple[torch.Tensor, tuple[int, int]]:
     """Resize image so shorter side == `size`, then cap longer side to `max_size`.
 
-    Mirrors `v2.Resize(size, antialias=True)` + `v2.ToDtype(float32, scale=True)`
-    from `get_val_transform` (so val/inference share identical preprocessing),
-    plus a `max_size` cap on the longer side that train/val never triggered
-    because images are near-square — but extreme-aspect-ratio test images would
-    expand to e.g. 640×6000 and make `paste_masks_in_image` allocate 15+ GB.
+    Mirrors `v2.Resize(size, max_size, antialias=True)` + `v2.ToDtype(float32, scale=True)`
+    from `get_val_transform` (so val/inference share identical preprocessing).
+    Both default to 1024 to match the model's eval `min_size[-1]=1024, max_size=1024`,
+    so no further resize happens inside `GeneralizedRCNNTransform`. The cap also
+    bounds `paste_masks_in_image` memory on extreme-aspect-ratio test images.
 
     Returns a (3, H, W) float32 tensor in [0, 1] and the original (h, w) tuple.
     """
