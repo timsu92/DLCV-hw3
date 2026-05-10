@@ -201,6 +201,9 @@ def main():
 
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
+    # Reset memory stats at training start
+    torch.cuda.reset_peak_memory_stats()
+
     total_optim_steps = (len(train_loader) // args.accum_steps) * args.epochs
     warmup_steps = min(args.warmup_steps, total_optim_steps // 5)
     scheduler = SequentialLR(
@@ -296,6 +299,28 @@ def main():
                 print(f"  Saved best checkpoint (AP50={ap50:.4f})", flush=True)
 
         dist.barrier()
+
+    # Collect and print peak memory statistics
+    max_memory_gb = torch.cuda.max_memory_allocated() / (1024**3)
+    max_memory_tensor = torch.tensor(max_memory_gb, device=device)
+
+    if dist.is_initialized():
+        gathered_list = [
+            torch.zeros_like(max_memory_tensor) for _ in range(dist.get_world_size())
+        ]
+        dist.all_gather(gathered_list, max_memory_tensor)
+
+        if is_main:
+            print("\n" + "=" * 60)
+            print("Peak GPU Memory Statistics (GiB):")
+            print("=" * 60)
+            total_memory = 0.0
+            for rank, mem_tensor in enumerate(gathered_list):
+                mem_gb = mem_tensor.item()
+                print(f"  GPU {rank}: {mem_gb:.2f} GiB")
+                total_memory += mem_gb
+            print(f"  Total across all GPUs: {total_memory:.2f} GiB")
+            print("=" * 60 + "\n")
 
     cleanup_ddp()
 
