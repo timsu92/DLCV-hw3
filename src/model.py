@@ -17,15 +17,15 @@ def _enable_checkpointing(layer: nn.Sequential) -> None:
 
 def build_model(
     num_classes: int = 5,
-    min_size: tuple[int, ...] = (480, 512, 544),
-    max_size: int = 640,
+    min_size: tuple[int, ...] = (640, 768, 896, 1024),
+    max_size: int = 1024,
     grad_checkpoint: bool = False,
 ) -> MaskRCNN:
     """Build ResNet101-FPN Mask R-CNN.
 
     num_classes: 4 cell types + 1 background = 5.
     min_size: shorter-side targets for multi-scale training (multiples of 32 align
-        cleanly with FPN strides 4/8/16/32/64).
+        cleanly with FPN strides 4/8/16/32/64). Eval uses min_size[-1]=1024.
     max_size: maximum image side length after resizing.
     grad_checkpoint: enable gradient checkpointing on ResNet layer2/3/4 to
         reduce activation memory ~30-40% at the cost of one extra forward pass.
@@ -40,8 +40,13 @@ def build_model(
         for layer_name in ("layer2", "layer3", "layer4"):
             _enable_checkpointing(getattr(backbone.body, layer_name))
 
+    # Anchor sizes shifted down by one octave compared to torchvision default to
+    # add size=4 coverage at P2 — ~5% of instances have sqrt(area) < 16 at model
+    # input. Trade-off: anchor-256/512 dropped (0.22% of instances > sqrt(256)
+    # rely on box regression from the anchor-128 match instead). Keeps 6 anchors
+    # per FPN level uniformly so RPNHead's single num_anchors works.
     anchor_generator = AnchorGenerator(
-        sizes=((8, 16), (32, 64), (64, 128), (128, 256), (256, 512)),
+        sizes=((4, 8), (16, 32), (32, 64), (64, 128), (128, 256)),
         aspect_ratios=((0.5, 1.0, 2.0),) * 5,
     )
 

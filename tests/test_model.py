@@ -64,3 +64,25 @@ def test_model_train_forward():
     assert expected_keys <= losses.keys()
     total = sum(losses.values())
     assert total.item() > 0
+
+
+def test_build_model_default_min_size_and_max_size():
+    """Defaults shifted to (640, 768, 896, 1024) and max=1024."""
+    from src.model import build_model
+
+    model = build_model(grad_checkpoint=False)
+    transform = model.transform
+    assert transform.min_size == (640, 768, 896, 1024), f"got {transform.min_size}"
+    assert transform.max_size == 1024, f"got {transform.max_size}"
+
+
+def test_build_model_anchor_sizes_shifted():
+    """Anchor sizes start at 4 (was 8); 6 anchors per location uniformly."""
+    from src.model import build_model
+
+    model = build_model(grad_checkpoint=False)
+    sizes = model.rpn.anchor_generator.sizes
+    expected = ((4, 8), (16, 32), (32, 64), (64, 128), (128, 256))
+    assert sizes == expected, f"got {sizes}"
+    counts = model.rpn.anchor_generator.num_anchors_per_location()
+    assert counts == [6, 6, 6, 6, 6], f"non-uniform anchor count breaks RPNHead: {counts}"
