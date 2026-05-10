@@ -65,8 +65,8 @@ def run_inference(
         for filename, image_id in image_name_to_id.items():
             img_path = test_dir / filename
             img_rgb = load_rgb(img_path)  # (H, W, 3) uint8
-            # Pre-resize to 640 px shorter side so paste_masks_in_image operates
-            # on a small canvas; masks are scaled back to original size below.
+            # Resize shorter side to 640 then cap longer side to 1333 to bound
+            # the paste_masks_in_image canvas; masks scaled back to orig below.
             img_small, (orig_h, orig_w) = pre_resize_image(img_rgb)
             img_t = (
                 torch.from_numpy(img_small)

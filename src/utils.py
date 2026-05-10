@@ -66,16 +66,22 @@ def resize_binary_mask(binary: np.ndarray, target_h: int, target_w: int) -> np.n
     return np.array(pil.resize((target_w, target_h), Image.NEAREST), dtype=bool)
 
 
-def pre_resize_image(img: np.ndarray, size: int = 640) -> tuple[np.ndarray, tuple[int, int]]:
-    """Scale image so shorter side == `size`; return (resized, (orig_h, orig_w)).
+def pre_resize_image(img: np.ndarray, size: int = 640, max_size: int = 1333) -> tuple[np.ndarray, tuple[int, int]]:
+    """Resize image so shorter side == `size`, then cap longer side to `max_size`.
 
-    Mirrors the v2.Resize(size) behaviour used in the training/val transform so
-    that paste_masks_in_image operates on a small canvas rather than the
-    original high-resolution image.
+    Mirrors v2.Resize(size) from the training transform (shorter-side target),
+    then adds the max_size cap that training images never triggered because they
+    are nearly square. Without the cap, extreme-aspect-ratio test images expand
+    to e.g. 640×6000, making paste_masks_in_image allocate 15+ GB for 1000 masks.
     """
     orig_h, orig_w = img.shape[:2]
     scale = size / min(orig_h, orig_w)
     new_h, new_w = round(orig_h * scale), round(orig_w * scale)
+    if max(new_h, new_w) > max_size:
+        scale2 = max_size / max(new_h, new_w)
+        new_h, new_w = round(new_h * scale2), round(new_w * scale2)
+    if (new_h, new_w) == (orig_h, orig_w):
+        return img, (orig_h, orig_w)
     resized = np.array(Image.fromarray(img).resize((new_w, new_h), Image.BILINEAR))
     return resized, (orig_h, orig_w)
 
