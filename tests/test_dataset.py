@@ -134,3 +134,59 @@ def test_oversampled_dataset_has_more_entries(tiny_train_dir):
     ds_os = CellDataset(tiny_train_dir, coco_os)
     # img_b has class3 → should be repeated
     assert len(ds_os) > len(ds_normal)
+
+
+def test_cell_dataset_skip_above_instances_drops_dense_images(tmp_path):
+    """Images with > skip_above_instances annotations are excluded at init."""
+    import tifffile
+
+    from src.dataset import CellDataset, build_coco_annotations
+
+    # img_a: 1 instance; img_b: 3 instances; img_c: 5 instances
+    for folder, n_instances in [("img_a", 1), ("img_b", 3), ("img_c", 5)]:
+        d = tmp_path / folder
+        d.mkdir()
+        tifffile.imwrite(
+            str(d / "image.tif"),
+            np.random.randint(0, 255, (10, 10, 4), dtype=np.uint8),
+        )
+        mask = np.zeros((10, 10), dtype=np.float64)
+        for i in range(n_instances):
+            mask[i, i] = i + 1
+        tifffile.imwrite(str(d / "class1.tif"), mask)
+
+    coco = build_coco_annotations(tmp_path, ["img_a", "img_b", "img_c"])
+
+    # threshold=2: drops img_b (3 inst) and img_c (5 inst), keeps img_a (1 inst)
+    ds = CellDataset(tmp_path, coco, transforms=None, skip_above_instances=2)
+    assert len(ds) == 1
+    assert ds.images[0]["file_name"] == "img_a"
+
+    # threshold=4: drops only img_c (5 inst), keeps img_a, img_b
+    ds2 = CellDataset(tmp_path, coco, transforms=None, skip_above_instances=4)
+    assert len(ds2) == 2
+    kept = {img["file_name"] for img in ds2.images}
+    assert kept == {"img_a", "img_b"}
+
+
+def test_cell_dataset_skip_above_instances_none_keeps_all(tmp_path):
+    """skip_above_instances=None keeps every image (default behaviour)."""
+    import tifffile
+
+    from src.dataset import CellDataset, build_coco_annotations
+
+    for folder, n in [("img_a", 1), ("img_b", 3)]:
+        d = tmp_path / folder
+        d.mkdir()
+        tifffile.imwrite(
+            str(d / "image.tif"),
+            np.random.randint(0, 255, (10, 10, 4), dtype=np.uint8),
+        )
+        mask = np.zeros((10, 10), dtype=np.float64)
+        for i in range(n):
+            mask[i, i] = i + 1
+        tifffile.imwrite(str(d / "class1.tif"), mask)
+
+    coco = build_coco_annotations(tmp_path, ["img_a", "img_b"])
+    ds = CellDataset(tmp_path, coco, transforms=None)  # default None
+    assert len(ds) == 2

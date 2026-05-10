@@ -91,13 +91,24 @@ class CellDataset(Dataset):
         train_dir: Path,
         coco_data: dict,
         transforms=None,
+        skip_above_instances: int | None = None,
     ):
         self.train_dir = train_dir
         self.transforms = transforms
-        self.images = coco_data["images"]
         self._ann_by_image: dict[int, list[dict]] = {}
         for ann in coco_data["annotations"]:
             self._ann_by_image.setdefault(ann["image_id"], []).append(ann)
+
+        # Filter out dense images that would OOM during RPN target assignment.
+        # Skipping (rather than per-epoch subsampling) avoids creating false-
+        # negative anchor supervision on the dropped GT.
+        if skip_above_instances is not None:
+            self.images = [
+                img for img in coco_data["images"]
+                if len(self._ann_by_image.get(img["id"], [])) <= skip_above_instances
+            ]
+        else:
+            self.images = coco_data["images"]
 
     def __len__(self) -> int:
         return len(self.images)
