@@ -4,9 +4,11 @@ from pathlib import Path
 
 import numpy as np
 import tifffile
+import torch
 from PIL import Image
 from pycocotools import mask as mask_utils
 from torchvision.ops import nms as _box_nms
+from torchvision.transforms import v2
 
 
 def load_rgb(path: str | Path) -> np.ndarray:
@@ -66,24 +68,25 @@ def resize_binary_mask(binary: np.ndarray, target_h: int, target_w: int) -> np.n
     return np.array(pil.resize((target_w, target_h), Image.NEAREST), dtype=bool)
 
 
-def pre_resize_image(img: np.ndarray, size: int = 640, max_size: int = 1333) -> tuple[np.ndarray, tuple[int, int]]:
+def pre_resize_image(
+    img: np.ndarray, size: int = 640, max_size: int = 1333
+) -> tuple[torch.Tensor, tuple[int, int]]:
     """Resize image so shorter side == `size`, then cap longer side to `max_size`.
 
-    Mirrors v2.Resize(size) from the training transform (shorter-side target),
-    then adds the max_size cap that training images never triggered because they
-    are nearly square. Without the cap, extreme-aspect-ratio test images expand
-    to e.g. 640×6000, making paste_masks_in_image allocate 15+ GB for 1000 masks.
+    Mirrors `v2.Resize(size, antialias=True)` + `v2.ToDtype(float32, scale=True)`
+    from `get_val_transform` (so val/inference share identical preprocessing),
+    plus a `max_size` cap on the longer side that train/val never triggered
+    because images are near-square — but extreme-aspect-ratio test images would
+    expand to e.g. 640×6000 and make `paste_masks_in_image` allocate 15+ GB.
+
+    Returns a (3, H, W) float32 tensor in [0, 1] and the original (h, w) tuple.
     """
     orig_h, orig_w = img.shape[:2]
-    scale = size / min(orig_h, orig_w)
-    new_h, new_w = round(orig_h * scale), round(orig_w * scale)
-    if max(new_h, new_w) > max_size:
-        scale2 = max_size / max(new_h, new_w)
-        new_h, new_w = round(new_h * scale2), round(new_w * scale2)
-    if (new_h, new_w) == (orig_h, orig_w):
-        return img, (orig_h, orig_w)
-    resized = np.array(Image.fromarray(img).resize((new_w, new_h), Image.BILINEAR))
-    return resized, (orig_h, orig_w)
+    img_t = torch.from_numpy(img).permute(2, 0, 1)  # (3, H, W) uint8
+    img_t = v2.functional.resize(
+        img_t, size=[size], max_size=max_size, antialias=True
+    )
+    return img_t.to(torch.float32) / 255.0, (orig_h, orig_w)
 
 
 def cross_class_nms(pred: dict, iou_threshold: float = 0.5) -> dict:
