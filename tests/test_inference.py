@@ -39,20 +39,21 @@ def test_submission_entry_fields():
     assert entry["bbox"][2] > 0 and entry["bbox"][3] > 0
 
 
-def test_output_json_is_list_of_dicts(tmp_path):
-    """run_inference writes a JSON file that is a list of result dicts."""
+def test_run_inference_returns_list_of_dicts(tmp_path):
+    """run_inference returns a list of COCO-result dicts (no longer writes JSON)."""
     import torch
     import tifffile
     from src.inference import run_inference
 
-    # Mock model that returns one instance per image
+    # Mock model that returns one instance covering most of the image
+    # (so it survives the resize_binary_mask back to the original 200x200 size).
     def fake_model(imgs):
         H, W = imgs[0].shape[-2:]
         mask = torch.zeros(1, 1, H, W)
-        mask[0, 0, 5:15, 5:15] = 1.0
+        mask[0, 0, H // 4 : 3 * H // 4, W // 4 : 3 * W // 4] = 1.0
         return [
             {
-                "boxes": torch.tensor([[5.0, 5.0, 15.0, 15.0]]),
+                "boxes": torch.tensor([[float(W // 4), float(H // 4), float(3 * W // 4), float(3 * H // 4)]]),
                 "labels": torch.tensor([1]),
                 "scores": torch.tensor([0.9]),
                 "masks": mask,
@@ -60,21 +61,18 @@ def test_output_json_is_list_of_dicts(tmp_path):
         ]
 
     test_image_ids = {"fake.tif": 42}
-    out_path = tmp_path / "test-results.json"
 
-    fake_img = np.random.randint(0, 255, (20, 20, 4), dtype=np.uint8)
+    fake_img = np.random.randint(0, 255, (200, 200, 4), dtype=np.uint8)
     tifffile.imwrite(str(tmp_path / "fake.tif"), fake_img)
 
-    run_inference(
+    results = run_inference(
         model=fake_model,
         test_dir=tmp_path,
         image_name_to_id=test_image_ids,
-        output_path=out_path,
         score_threshold=0.5,
         device=torch.device("cpu"),
     )
 
-    results = json.loads(out_path.read_text())
     assert isinstance(results, list)
     assert len(results) == 1
     assert results[0]["image_id"] == 42
