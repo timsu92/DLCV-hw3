@@ -86,3 +86,35 @@ def test_build_model_anchor_sizes_shifted():
     assert sizes == expected, f"got {sizes}"
     counts = model.rpn.anchor_generator.num_anchors_per_location()
     assert counts == [6, 6, 6, 6, 6], f"non-uniform anchor count breaks RPNHead: {counts}"
+
+
+def test_build_model_with_cbam_builds():
+    from src.model import build_model
+
+    model = build_model(use_cbam=True)
+    assert model is not None
+
+
+def test_cbam_modules_present():
+    from src.model import build_model, CBAM, CBAMBackboneWrapper
+
+    model = build_model(use_cbam=True)
+    assert isinstance(model.backbone, CBAMBackboneWrapper)
+    assert isinstance(model.backbone.cbams["2"], CBAM)
+    assert isinstance(model.backbone.cbams["3"], CBAM)
+    assert model.backbone.cbams["2"].channel.fc[0].in_features == 1024
+    assert model.backbone.cbams["3"].channel.fc[0].in_features == 2048
+    assert model.backbone.out_channels == 256
+
+
+def test_cbam_output_shapes_unchanged():
+    from src.model import build_model
+
+    model = build_model(use_cbam=True)
+    model.eval()
+    with torch.no_grad():
+        out = model([torch.rand(3, 200, 200)])[0]
+    assert set(out.keys()) >= {"boxes", "labels", "masks", "scores"}
+    if len(out["masks"]) > 0:
+        assert out["masks"].ndim == 4
+        assert out["masks"].shape[1] == 1

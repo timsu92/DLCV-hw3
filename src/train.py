@@ -76,6 +76,11 @@ def parse_args():
         action="store_true",
         help="enable gradient checkpointing on ResNet layer2-4 to save ~30% activation memory",
     )
+    p.add_argument(
+        "--cbam",
+        action="store_true",
+        help="add CBAM attention after ResNet layer3/4 (between body and FPN)",
+    )
     return p.parse_args()
 
 
@@ -107,7 +112,9 @@ def evaluate(model_without_ddp, val_loader, val_coco_json: dict, device):
     # Original image sizes needed to scale predicted masks back to GT resolution.
     # Val images are pre-resized to 640 px (get_val_transform), so model output
     # masks are at ~640 px; COCOeval requires them at the original annotation size.
-    img_sizes = {img["id"]: (img["height"], img["width"]) for img in val_coco_json["images"]}
+    img_sizes = {
+        img["id"]: (img["height"], img["width"]) for img in val_coco_json["images"]
+    }
 
     results = []
     for imgs, targets in val_loader:
@@ -147,13 +154,16 @@ def evaluate(model_without_ddp, val_loader, val_coco_json: dict, device):
     return float(evaluator.stats[1])  # stats[1] = AP @ IoU=0.50
 
 
-def save_checkpoint(path: Path, epoch: int, model, optimizer, ap50: float):
+def save_checkpoint(
+    path: Path, epoch: int, model, optimizer, ap50: float, use_cbam: bool = False
+):
     torch.save(
         {
             "epoch": epoch,
             "model_state_dict": model.module.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "ap50": ap50,
+            "use_cbam": use_cbam,
         },
         path,
     )
@@ -203,6 +213,7 @@ def main():
         min_size=tuple(args.min_size),
         max_size=args.max_size,
         grad_checkpoint=args.grad_checkpoint,
+        use_cbam=args.cbam,
     ).to(device)
     model = DDP(model, device_ids=[local_rank])
 
@@ -281,6 +292,7 @@ def main():
                 model,
                 optimizer,
                 ap50,
+                use_cbam=args.cbam,
             )
             print("  Saved last checkpoint", flush=True)
 
@@ -291,6 +303,7 @@ def main():
                     model,
                     optimizer,
                     ap50,
+                    use_cbam=args.cbam,
                 )
                 print(f"  Saved periodic checkpoint (epoch {epoch + 1})", flush=True)
 
@@ -302,6 +315,7 @@ def main():
                     model,
                     optimizer,
                     ap50,
+                    use_cbam=args.cbam,
                 )
                 print(f"  Saved best checkpoint (AP50={ap50:.4f})", flush=True)
 

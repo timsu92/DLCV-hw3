@@ -148,8 +148,9 @@ def main() -> None:
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = build_model()
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=True)
+    use_cbam = ckpt.get("use_cbam", False)
+    model = build_model(use_cbam=use_cbam)
     model.load_state_dict(ckpt["model_state_dict"])
     model.to(device).eval()
 
