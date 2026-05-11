@@ -96,7 +96,7 @@ def test_build_model_with_cbam_builds():
 
 
 def test_cbam_modules_present():
-    from src.model import build_model, CBAM, CBAMBackboneWrapper
+    from src.model import build_model, CBAM, CBAMBackboneWrapper, MaskHeadWithCBAM
 
     model = build_model(use_cbam=True)
     assert isinstance(model.backbone, CBAMBackboneWrapper)
@@ -105,6 +105,9 @@ def test_cbam_modules_present():
     assert model.backbone.cbams["2"].channel.fc[0].in_features == 1024
     assert model.backbone.cbams["3"].channel.fc[0].in_features == 2048
     assert model.backbone.out_channels == 256
+    assert isinstance(model.roi_heads.mask_head, MaskHeadWithCBAM)
+    assert isinstance(model.roi_heads.mask_head.cbam, CBAM)
+    assert model.roi_heads.mask_head.cbam.channel.fc[0].in_features == 256
 
 
 def test_cbam_output_shapes_unchanged():

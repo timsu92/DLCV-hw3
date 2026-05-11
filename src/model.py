@@ -69,6 +69,18 @@ class CBAMBackboneWrapper(nn.Module):
         return self.wrapped.fpn(features)
 
 
+class MaskHeadWithCBAM(nn.Module):
+    """Appends CBAM after the MaskRCNNHeads conv stack."""
+
+    def __init__(self, mask_head, channels: int = 256):
+        super().__init__()
+        self.head = mask_head
+        self.cbam = CBAM(channels)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.cbam(self.head(x))
+
+
 def _enable_checkpointing(layer: nn.Sequential) -> None:
     """Wrap each block in a ResNet layer with gradient checkpointing."""
     for block in layer:
@@ -129,4 +141,8 @@ def build_model(
         rpn_post_nms_top_n_test=1500,
         box_detections_per_img=1000,
     )
+
+    if use_cbam:
+        model.roi_heads.mask_head = MaskHeadWithCBAM(model.roi_heads.mask_head)
+
     return model
