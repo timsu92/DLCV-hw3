@@ -7,7 +7,11 @@ def _make_sample(H=1024, W=1024, n_inst=3):
     img = tv_tensors.Image(torch.randint(0, 255, (3, H, W), dtype=torch.uint8))
     # boxes well inside the image so RandomIoUCrop can find a valid crop
     boxes = torch.tensor(
-        [[100.0, 100.0, 200.0, 200.0], [400.0, 400.0, 500.0, 500.0], [600.0, 600.0, 700.0, 700.0]]
+        [
+            [100.0, 100.0, 200.0, 200.0],
+            [400.0, 400.0, 500.0, 500.0],
+            [600.0, 600.0, 700.0, 700.0],
+        ]
     )[:n_inst]
     masks = tv_tensors.Mask(torch.zeros(n_inst, H, W, dtype=torch.uint8))
     for i, b in enumerate(boxes):

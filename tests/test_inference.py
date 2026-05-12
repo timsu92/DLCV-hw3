@@ -53,7 +53,16 @@ def test_run_inference_returns_list_of_dicts(tmp_path):
         mask[0, 0, H // 4 : 3 * H // 4, W // 4 : 3 * W // 4] = 1.0
         return [
             {
-                "boxes": torch.tensor([[float(W // 4), float(H // 4), float(3 * W // 4), float(3 * H // 4)]]),
+                "boxes": torch.tensor(
+                    [
+                        [
+                            float(W // 4),
+                            float(H // 4),
+                            float(3 * W // 4),
+                            float(3 * H // 4),
+                        ]
+                    ]
+                ),
                 "labels": torch.tensor([1]),
                 "scores": torch.tensor([0.9]),
                 "masks": mask,

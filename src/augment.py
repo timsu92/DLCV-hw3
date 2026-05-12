@@ -18,22 +18,24 @@ def get_train_transform():
       partial cells. Default min_size=1 keeps all real cells (smallest is 5x5).
     - ToDtype last so prior ops run on uint8.
     """
-    return v2.Compose([
-        v2.Resize(_PRE_RESIZE, max_size=_MAX_SIZE, antialias=True),
-        v2.RandomHorizontalFlip(p=0.5),
-        v2.RandomVerticalFlip(p=0.5),
-        v2.RandomPhotometricDistort(p=1.0),
-        v2.RandomIoUCrop(
-            min_scale=0.5,
-            max_scale=1.0,
-            min_aspect_ratio=0.2,
-            max_aspect_ratio=5.0,
-            sampler_options=[0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
-            trials=40,
-        ),
-        v2.SanitizeBoundingBoxes(),
-        v2.ToDtype(torch.float32, scale=True),
-    ])
+    return v2.Compose(
+        [
+            v2.Resize(_PRE_RESIZE, max_size=_MAX_SIZE, antialias=True),
+            v2.RandomHorizontalFlip(p=0.5),
+            v2.RandomVerticalFlip(p=0.5),
+            v2.RandomPhotometricDistort(p=1.0),
+            v2.RandomIoUCrop(
+                min_scale=0.5,
+                max_scale=1.0,
+                min_aspect_ratio=0.2,
+                max_aspect_ratio=5.0,
+                sampler_options=[0.0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0],
+                trials=40,
+            ),
+            v2.SanitizeBoundingBoxes(),
+            v2.ToDtype(torch.float32, scale=True),
+        ]
+    )
 
 
 def get_val_transform():
@@ -47,7 +49,9 @@ def get_val_transform():
     back to the true original size before RLE-encoding so COCOeval IoU is
     computed correctly.
     """
-    return v2.Compose([
-        v2.Resize(_PRE_RESIZE, max_size=_MAX_SIZE, antialias=True),
-        v2.ToDtype(torch.float32, scale=True),
-    ])
+    return v2.Compose(
+        [
+            v2.Resize(_PRE_RESIZE, max_size=_MAX_SIZE, antialias=True),
+            v2.ToDtype(torch.float32, scale=True),
+        ]
+    )

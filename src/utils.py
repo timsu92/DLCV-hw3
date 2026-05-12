@@ -83,9 +83,7 @@ def pre_resize_image(
     """
     orig_h, orig_w = img.shape[:2]
     img_t = torch.from_numpy(img).permute(2, 0, 1)  # (3, H, W) uint8
-    img_t = v2.functional.resize(
-        img_t, size=[size], max_size=max_size, antialias=True
-    )
+    img_t = v2.functional.resize(img_t, size=[size], max_size=max_size, antialias=True)
     return img_t.to(torch.float32) / 255.0, (orig_h, orig_w)
 
 

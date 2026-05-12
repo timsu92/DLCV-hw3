@@ -104,7 +104,8 @@ class CellDataset(Dataset):
         # negative anchor supervision on the dropped GT.
         if skip_above_instances is not None:
             self.images = [
-                img for img in coco_data["images"]
+                img
+                for img in coco_data["images"]
                 if len(self._ann_by_image.get(img["id"], [])) <= skip_above_instances
             ]
         else:

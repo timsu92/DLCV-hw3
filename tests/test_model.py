@@ -85,7 +85,9 @@ def test_build_model_anchor_sizes_shifted():
     expected = ((4, 8), (16, 32), (32, 64), (64, 128), (128, 256))
     assert sizes == expected, f"got {sizes}"
     counts = model.rpn.anchor_generator.num_anchors_per_location()
-    assert counts == [6, 6, 6, 6, 6], f"non-uniform anchor count breaks RPNHead: {counts}"
+    assert counts == [6, 6, 6, 6, 6], (
+        f"non-uniform anchor count breaks RPNHead: {counts}"
+    )
 
 
 def test_build_model_with_cbam_builds():
