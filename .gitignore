@@ -207,3 +207,6 @@ pip-selfcheck.json
 ### Project ###
 /data
 /checkpoints
+/report/node_modules
+!/report/scripts
+/report/report.pdf

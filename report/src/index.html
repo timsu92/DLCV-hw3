@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Instance Segmentation of Medical Cell Images Using Mask R-CNN with CBAM</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters: [{left:'$',right:'$',display:false}]});"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Noto+Sans+TC:wght@400&display=swap');
+
+@page { size: A4; margin: 19mm 15mm; }
+
+body {
+  font-family: 'EB Garamond', 'Palatino Linotype', Georgia, serif;
+  font-size: 9.5pt;
+  line-height: 1.4;
+  column-count: 2;
+  column-gap: 6mm;
+  max-width: 180mm;
+  margin: 0 auto;
+  color: #111;
+}
+
+p { margin: 0 0 4pt 0; text-align: justify; }
+
+.full-width { column-span: all; }
+
+h1 { font-size: 14pt; font-weight: 700; text-align: center; margin-bottom: 4pt; }
+.authors { text-align: center; font-size: 10pt; margin-bottom: 2pt; }
+.affiliation { text-align: center; font-size: 9pt; color: #555; margin-bottom: 2pt; }
+.repo { text-align: center; font-size: 9pt; color: #555; margin-bottom: 13pt; }
+
+h2 { font-size: 10pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 10pt; margin-bottom: 4pt; border-bottom: 0.5pt solid #999; break-after: avoid; }
+h3 { font-size: 9.5pt; font-weight: 700; font-style: italic; margin-top: 6pt; margin-bottom: 2pt; break-after: avoid; }
+
+.abstract-box { column-span: all; margin: 0 12mm 10pt; }
+.abstract-box p { font-size: 9pt; }
+.abstract-box .abstract-label { font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: center; margin-bottom: 4pt; }
+
+figure { break-inside: avoid; margin: 6pt 0; text-align: center; }
+figure img { max-width: 100%; height: auto; }
+figcaption { font-size: 8pt; color: #333; margin-top: 3pt; line-height: 1.3; text-align: justify; }
+
+.fig-row { display: flex; gap: 4mm; align-items: flex-start; justify-content: center; }
+.fig-row figure { flex: 1; margin: 6pt 0; }
+
+table { width: 100%; border-collapse: collapse; font-size: 8.5pt; break-inside: avoid; margin: 6pt 0; }
+thead tr { border-top: 1pt solid #111; border-bottom: 0.5pt solid #111; }
+tbody tr:last-child { border-bottom: 1pt solid #111; }
+th { font-weight: 700; padding: 2pt 4pt; text-align: left; }
+td { padding: 2pt 4pt; }
+td.num, th.num { text-align: right; }
+tr.best td { font-weight: 700; }
+
+.table-caption { font-size: 8pt; color: #333; margin-top: 3pt; line-height: 1.3; text-align: justify; }
+
+.references ol { padding-left: 14pt; font-size: 8.5pt; margin: 4pt 0; }
+.references li { margin-bottom: 3pt; }
+
+.chinese-name { font-family: 'Noto Sans TC', sans-serif; }
+
+ol, ul { margin: 4pt 0; padding-left: 14pt; }
+li { margin-bottom: 2pt; }
+
+@media print {
+  a { color: inherit; text-decoration: none; }
+  figure { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<div class="full-width">
+  <h1>Instance Segmentation of Medical Cell Images<br>Using Mask R-CNN with CBAM</h1>
+  <div class="authors"><span class="chinese-name">蘇胤翔</span> &nbsp;&middot;&nbsp; 314551101</div>
+  <div class="affiliation">National Yang Ming Chiao Tung University (NYCU)</div>
+  <div class="repo"><a href="https://github.com/timsu92/DLCV-hw3">github.com/timsu92/DLCV-hw3</a></div>
+</div>
+
+<div class="abstract-box">
+  <div class="abstract-label">Abstract</div>
+  <p>I present an instance segmentation system for medical cell images with four cell types (class1–class4) using Mask R-CNN with a ResNet101-FPN backbone. I address three key dataset challenges — severe class imbalance (class1/2 have 25&times; more instances than class3/4), tiny instances (20.5% of class2 instances have $\sqrt{\text{area}} < 16$ px), and variable image sizes — through targeted preprocessing, custom anchor design, and aspect-ratio-aware augmentation. I further improve the backbone with CBAM (Convolutional Block Attention Module) attention at ResNet stages 3 and 4, which yields simultaneous improvements on both validation ($\text{AP}_{50}$: 0.7599 &rarr; 0.7805) and the hidden test set ($\text{AP}_{50}$: 0.5675 &rarr; 0.5828), confirming genuine generalization rather than overfitting.</p>
+</div>
+
+<h2>1. Introduction</h2>
+<p>Instance segmentation is a fundamental computer vision task requiring per-pixel classification of every object instance. In medical imaging, accurate segmentation of individual cells is critical for downstream analysis. This work addresses the CodaBench instance segmentation challenge on a dataset of 4-channel TIFF medical images containing four cell types (class1–class4), with 209 labeled training images and 101 unlabeled test images.</p>
+
+<p>The dataset presents three key challenges:</p>
+<ol>
+  <li><b>Class imbalance.</b> Class1 and class2 together contain 30,190 instances, while class3 and class4 contain only 1,217 combined — a 25:1 ratio.</li>
+  <li><b>Tiny instances.</b> Class2 has a median instance size of only 19.2 px ($\sqrt{wh}$), with 20.5% of instances below 16 px — sub-pixel at ResNet layer3's stride-16 resolution.</li>
+  <li><b>Variable image sizes.</b> Training images range from 81&times;74 to 1956&times;2162 pixels, while the aspect-ratio distribution of test images differs from training.</li>
+</ol>
+
+<p>I adopt Mask R-CNN [2] with a ResNet101-FPN [3] backbone as our base model, augmented with CBAM attention modules [4] at backbone stages 3 and 4. The final model achieves validation $\text{AP}_{50}$ = 0.7805 and leaderboard $\text{AP}_{50}$ = 0.5828.</p>
+
+<h2>2. Method</h2>
+
+<h3>2.1 Dataset Analysis and Preprocessing</h3>
+<p>Figure 2 shows the severe class imbalance: class1 and class2 dominate with 14,537 and 15,653 instances respectively, while class3 and class4 have only 630 and 587. Figure 3 shows that instance sizes vary dramatically across classes — class2 has the smallest instances (median $\sqrt{wh}$ = 19.2 px) while class4 has the largest (median 53.4 px).</p>
+
+<div class="full-width">
+  <div class="fig-row">
+    <figure>
+      <img src="images/class_distribution.png" alt="Class distribution">
+      <figcaption><b>Figure 2.</b> Per-class instance counts on the training set. Class1 and class2 contain 14,537 and 15,653 instances; class3 and class4 contain only 630 and 587 — a 25:1 imbalance ratio between the dominant and rare classes.</figcaption>
+    </figure>
+    <figure>
+      <img src="images/instance_sizes.png" alt="Instance size distribution">
+      <figcaption><b>Figure 3.</b> Distribution of instance sizes ($\sqrt{wh}$, in pixels) per class. Class2 instances are the smallest (median 19.2 px) with 20.5% below 16 px, while class4 instances are the largest (median 53.4 px).</figcaption>
+    </figure>
+  </div>
+</div>
+
+<p><b>Decisions driven by data analysis:</b></p>
+
+<p><i>Class imbalance</i> — I apply <code>WeightedRandomSampler</code> with weight &times;3 for images containing class3 or class4 instances, increasing their sampling probability to expose the model to rare classes more frequently during training.</p>
+
+<p><i>Tiny instances</i> — Standard anchor configurations start at size 32&times;32. Since 20.5% of class2 instances are smaller than 16 px in $\sqrt{wh}$, I use a custom <code>AnchorGenerator</code> with sizes ((4, 8), (16, 32), (32, 64), (64, 128), (128, 256)) across FPN levels P2–P6, providing anchor coverage down to 4 px.</p>
+
+<p><i>Dense images</i> — Some training images contain up to 772 ground-truth instances, causing GPU memory overflow. I filter out images with more than 400 instances (<code>skip_above_instances=400</code>), keeping 178 of the 209 images.</p>
+
+<p><i>Aspect ratio variation</i> — I add <code>RandomIoUCrop</code> (scale 0.5–1.0, aspect ratio 0.2–5.0) to augment the model's exposure to non-square crops, addressing the distribution shift between (nearly square) training images and the wider-aspect-ratio test images.</p>
+
+<p><i>Multi-scale training</i> — I train with random short-side resizes of min_size &isin; {640, 768, 896, 1024} px (max 1024 px) to handle the wide range of image sizes.</p>
+
+<p>Additional augmentations: <code>RandomHorizontalFlip</code> (p=0.5), <code>RandomVerticalFlip</code> (p=0.5, justified by the absence of orientation bias in cell images), <code>RandomPhotometricDistort</code> (brightness/contrast/saturation/hue).</p>
+
+<h3>2.2 Model Architecture</h3>
+<p>The base model is Mask R-CNN [2] with a ResNet101-FPN [3] backbone pretrained on ImageNet (IMAGENET1K_V2 weights), with all 5 backbone stages fine-tuned.</p>
+
+<p><b>CBAM Attention.</b> I insert CBAM modules [4] between the ResNet body and the FPN, applied to the layer3 (1024-channel) and layer4 (2048-channel) feature maps. Each CBAM module applies channel attention followed by spatial attention:</p>
+<ul>
+  <li><i>Channel attention</i>: global average and max pooling &rarr; shared two-layer FC (C &rarr; C/16 &rarr; C) &rarr; sigmoid &rarr; channel-wise scale</li>
+  <li><i>Spatial attention</i>: channel-wise average and max &rarr; concatenate &rarr; 7&times;7 Conv(2&rarr;1) &rarr; sigmoid &rarr; spatial scale</li>
+</ul>
+<p>Total CBAM parameters: &asymp;0.66 M (+1.0% over the 64 M backbone).</p>
+
+<p><b>Inference post-processing.</b> After per-class NMS, I apply cross-class NMS (IoU threshold 0.5) to suppress duplicate detections of the same cell assigned to different categories. Score threshold is 0.05 for COCOeval (to preserve the full precision-recall curve) and 0.5 for visualization.</p>
+
+<h3>2.3 Hyperparameters</h3>
+
+<table>
+  <thead>
+    <tr><th>Parameter</th><th>Value</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Optimizer</td><td>AdamW</td></tr>
+    <tr><td>Learning rate</td><td>$1 \times 10^{-4}$</td></tr>
+    <tr><td>Weight decay</td><td>$1 \times 10^{-4}$</td></tr>
+    <tr><td>LR schedule</td><td>CosineAnnealingLR ($\eta_{\min} = 10^{-6}$)</td></tr>
+    <tr><td>LR warmup</td><td>Linear, 500 steps, start_factor = 0.1</td></tr>
+    <tr><td>Epochs</td><td>37</td></tr>
+    <tr><td>Batch size</td><td>2 (gradient checkpointing)</td></tr>
+    <tr><td>Mixed precision</td><td>PyTorch AMP (autocast + GradScaler)</td></tr>
+    <tr><td>Score threshold</td><td>0.05 (COCOeval), 0.5 (NMS)</td></tr>
+  </tbody>
+</table>
+<div class="table-caption"><b>Table 1.</b> Training hyperparameters used for the final CBAM model.</div>
+
+<h2>3. Additional Experiments</h2>
+
+<h3>3.1 Dense Image Threshold (skip_above_instances=500)</h3>
+<p><i>Hypothesis.</i> Including 5 more high-density images (400–499 GT instances, previously filtered) would expose the model to more class2 diversity and improve performance.</p>
+
+<p><i>Change.</i> <code>skip_above_instances</code> raised from 400 to 500, adding 5 images and 1,708 extra class2 annotations (+12.7% class2 training data).</p>
+
+<p><i>Result.</i> Validation $\text{AP}_{50}$ improved by +0.0096 (0.7599 &rarr; 0.7695), but leaderboard $\text{AP}_{50}$ dropped sharply by &minus;0.0327 (0.5675 &rarr; 0.5348). The val–test gap widened from 0.192 to 0.235.</p>
+
+<p><i>Analysis.</i> The 5 added images are among the densest in the training distribution (large, nearly-square, high-density). The val set is drawn from the same distribution, explaining the val improvement. However, the test set has different geometric characteristics (higher aspect ratios, different scale distribution). Training on more dense square images increases the model's fit to the training distribution without addressing the geometric gap — causing the leaderboard drop. The val–test gap widening (+0.043) is the diagnostic: it flags distribution-specific overfitting, not a genuine model improvement.</p>
+
+<h3>3.2 CBAM Attention at ResNet Stages 3 and 4</h3>
+<p><i>Hypothesis.</i> Staining variation between training and test slides may cause certain ResNet feature channels to encode staining artifacts rather than cell structure. Channel attention can learn to down-weight these artifact channels; spatial attention can focus on cell-location features.</p>
+
+<p><i>Change.</i> Two CBAM modules inserted at layer3 (1024-ch) and layer4 (2048-ch), adding &asymp;0.66 M parameters and 0.41 GiB peak VRAM.</p>
+
+<p><i>Result.</i> Validation $\text{AP}_{50}$ improved by +0.0206 (0.7599 &rarr; 0.7805); leaderboard $\text{AP}_{50}$ improved by +0.0153 (0.5675 &rarr; 0.5828). The val–test gap changed only slightly: 0.192 &rarr; 0.198.</p>
+
+<p><i>Analysis.</i> Unlike the threshold=500 experiment, CBAM modified how the model processes features rather than which images it sees. The simultaneous improvement on both val and leaderboard, combined with the near-static val–test gap (+0.006 vs. +0.043 for threshold=500), indicates genuine generalization. The contrast between these two experiments illustrates a useful diagnostic: when a change improves val but widens the val–test gap, it is likely distribution-specific; when both val and leaderboard improve with a stable gap, the change is a real model quality improvement.</p>
+
+<h2>4. Results</h2>
+
+<p><b>Training progress.</b> Figure 1 shows training loss and validation $\text{AP}_{50}$ across all runs. The CBAM run (brightest) achieves its best $\text{AP}_{50}$ = 0.7805 at epoch 27, with the cosine LR decay enabling continued improvement through epoch 23–27 before plateauing.</p>
+
+<div class="full-width">
+  <figure>
+    <img src="images/training_curves.png" alt="Training curves">
+    <figcaption><b>Figure 1.</b> Training loss (left) and validation $\text{AP}_{50}$ (right) over epochs across all experimental runs. The CBAM run (brightest curve) reaches the best validation $\text{AP}_{50}$ = 0.7805 at epoch 27.</figcaption>
+  </figure>
+</div>
+
+<p><b>Comparison.</b> Table 2 summarizes all experiments. The final CBAM model is the best on both metrics.</p>
+
+<table>
+  <thead>
+    <tr><th>Method</th><th class="num">Val $\text{AP}_{50}$</th><th class="num">LB $\text{AP}_{50}$</th><th class="num">Val–Test Gap</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Baseline</td><td class="num">0.6997</td><td class="num">0.4958</td><td class="num">0.204</td></tr>
+    <tr><td>+ Aug &amp; Resolution</td><td class="num">0.7599</td><td class="num">0.5675</td><td class="num">0.192</td></tr>
+    <tr><td>+ Dense thr=500</td><td class="num">0.7695</td><td class="num">0.5348</td><td class="num">0.235</td></tr>
+    <tr class="best"><td>+ CBAM (final)</td><td class="num">0.7805</td><td class="num">0.5828</td><td class="num">0.198</td></tr>
+  </tbody>
+</table>
+<div class="table-caption"><b>Table 2.</b> Experiment comparison. "LB $\text{AP}_{50}$" denotes leaderboard $\text{AP}_{50}$ on the hidden CodaBench test set. The final CBAM model is best on both validation and leaderboard.</div>
+
+<p><b>Qualitative results.</b> Figure 4 shows example predictions on two validation images. The model successfully segments densely packed small cells (class1/2) and correctly identifies the sparser, larger class4 cells.</p>
+
+<div class="full-width">
+  <figure style="margin:0;">
+    <div class="fig-row">
+      <img src="images/pred_viz_1.png" alt="Prediction visualization 1" style="max-width:49%;">
+      <img src="images/pred_viz_2.png" alt="Prediction visualization 2" style="max-width:49%;">
+    </div>
+    <figcaption><b>Figure 4.</b> Example predictions on two validation images. Left: a densely packed image dominated by class1/class2 cells. Right: a sparser image containing larger class4 cells. The model accurately delineates both small clustered cells and larger isolated ones.</figcaption>
+  </figure>
+</div>
+
+<h2>5. References</h2>
+<div class="references">
+  <ol>
+    <li>K. He, G. Gkioxari, P. Dollár, R. Girshick. "Mask R-CNN." In <i>Proc. IEEE ICCV</i>, 2017.</li>
+    <li>T.-Y. Lin, P. Dollár, R. Girshick, K. He, B. Hariharan, S. Belongie. "Feature Pyramid Networks for Object Detection." In <i>Proc. IEEE CVPR</i>, 2017.</li>
+    <li>S. Woo, J. Park, J.-Y. Lee, I. S. Kweon. "CBAM: Convolutional Block Attention Module." In <i>Proc. ECCV</i>, 2018.</li>
+    <li>I. Loshchilov, F. Hutter. "Decoupled Weight Decay Regularization." In <i>Proc. ICLR</i>, 2019.</li>
+    <li>Z. Huang, L. Huang, Y. Gong, C. Huang, X. Wang. "Mask Scoring R-CNN." In <i>Proc. IEEE CVPR</i>, 2019.</li>
+  </ol>
+</div>
+
+</body>
+</html>

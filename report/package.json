@@ -1,0 +1,5 @@
+{
+  "name": "report",
+  "scripts": { "pdf": "bun scripts/pdf.ts" },
+  "dependencies": { "playwright": "^1.52.0" }
+}
