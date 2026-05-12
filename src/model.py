@@ -69,16 +69,16 @@ class CBAMBackboneWrapper(nn.Module):
         return self.wrapped.fpn(features)
 
 
-class MaskHeadWithCBAM(nn.Module):
-    """Appends CBAM after the MaskRCNNHeads conv stack."""
+# class MaskHeadWithCBAM(nn.Module):
+#     """Appends CBAM after the MaskRCNNHeads conv stack."""
 
-    def __init__(self, mask_head, channels: int = 256):
-        super().__init__()
-        self.head = mask_head
-        self.cbam = CBAM(channels)
+#     def __init__(self, mask_head, channels: int = 256):
+#         super().__init__()
+#         self.head = mask_head
+#         self.cbam = CBAM(channels)
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self.cbam(self.head(x))
+#     def forward(self, x: Tensor) -> Tensor:
+#         return self.cbam(self.head(x))
 
 
 def _enable_checkpointing(layer: nn.Sequential) -> None:
@@ -142,7 +142,7 @@ def build_model(
         box_detections_per_img=1000,
     )
 
-    if use_cbam:
-        model.roi_heads.mask_head = MaskHeadWithCBAM(model.roi_heads.mask_head)
+    # if use_cbam:
+    #     model.roi_heads.mask_head = MaskHeadWithCBAM(model.roi_heads.mask_head)
 
     return model
